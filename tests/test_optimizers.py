@@ -5,7 +5,7 @@ import numpy as np
 
 import sawdown
 from tests import plotter
-from tests.sawdown import test_problems
+from tests import test_problems
 
 
 class KnapsackObjective(sawdown.ObjectiveBase):

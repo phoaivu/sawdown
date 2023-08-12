@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 import sawdown
-from tests.sawdown import test_problems
+from tests import test_problems
 
 
 class TestDiaries(unittest.TestCase):

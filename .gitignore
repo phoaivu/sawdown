@@ -1,8 +1,16 @@
+# PyCharm and virtualenv boilerplate.
+.idea/
+venv/
+
+# Disutils boilerplate
 dist/
-tests/logs/
 sawdown.egg-info/
 __pycache__/
 
-.idea/
-venv/
+# Protobuf auto-generated
+sawdown_pb2.py
+
+# test logs
+tests/logs/
+
 
