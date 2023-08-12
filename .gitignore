@@ -1,0 +1,8 @@
+dist/
+tests/logs/
+sawdown.egg-info/
+__pycache__/
+
+.idea/
+venv/
+
