@@ -2,21 +2,23 @@ import numpy as np
 
 
 class ConstraintsBase(object):
-
-    def var_dim(self):
-        raise NotImplementedError()
-
     def clone(self):
         raise NotImplementedError()
 
     def merge(self, other):
         raise NotImplementedError()
 
+    def is_empty(self):
+        return False
+
     def satisfied(self, x, opti_math):
         raise NotImplementedError()
 
-    def is_empty(self):
-        return False
+    def initialization_direction(self, x_k, d_k, opti_math, diary):
+        raise NotImplementedError()
+
+    def initialization_steplength(self, k, x_k, d_k, max_steplength, opti_math, diary):
+        raise NotImplementedError()
 
     def initialize(self, initializer, config, opti_math, diary):
         """
@@ -59,9 +61,6 @@ class ConstraintsBase(object):
 
 class EmptyConstraints(ConstraintsBase):
 
-    def var_dim(self):
-        return -1
-
     def clone(self):
         return EmptyConstraints()
 
@@ -69,10 +68,10 @@ class EmptyConstraints(ConstraintsBase):
         # For the sake of completeness.
         return other.clone()
 
-    def satisfied(self, x, opti_math):
+    def is_empty(self):
         return True
 
-    def is_empty(self):
+    def satisfied(self, x, opti_math):
         return True
 
     def initialize(self, initializer, config, opti_math, diary):

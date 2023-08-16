@@ -1,7 +1,7 @@
 import numpy as np
 
 from sawdown import errors
-from sawdown.constraints import base, inequalities, equalities, integerities
+from sawdown.constraints import base, inequalities, equalities
 from sawdown.proto import serializer
 
 
@@ -12,10 +12,10 @@ def merge_constraints(first, second):
     _mergers = [
         (base.EmptyConstraints, base.ConstraintsBase,
          lambda f, s: s.clone()),
-        (equalities.LinearEqualityConstraints, equalities.FixedValueConstraints,
-         lambda f, s: f.merge(s.to_equalities(f.var_dim()))),
-        (inequalities.LinearInequalityConstraints, integerities.IntegerityConstraints,
-         lambda f, s: f.merge(s.range_constraints(f.var_dim())))
+        # (equalities.LinearEqualityConstraints, equalities.FixedValueConstraints,
+        #  lambda f, s: f.merge(s.to_equalities(f.var_dim()))),
+        # (inequalities.LinearInequalityConstraints, integerities.IntegerityConstraints,
+        #  lambda f, s: f.merge(s.range_constraints(f.var_dim())))
     ]
 
     for (this, that, merger) in _mergers:
@@ -30,7 +30,10 @@ def merge_constraints(first, second):
 class ConstraintsMixIn(object):
 
     def __init__(self, proto_problem):
-        self._inequality_constraints = inequalities.EmptyInequalityConstraints()
+        # NOTE: the missing type of constraints are non-linear inequalities/equalities,
+        # which, when supported, implemented via a merge into self._inequality_constraints
+        # and self._equality_constraints.
+        self._inequality_constraints = base.EmptyConstraints()
         self._equality_constraints = base.EmptyConstraints()
         self._bound_constraints = base.EmptyConstraints()
         self._fixed_value_constraints = base.EmptyConstraints()
@@ -68,9 +71,9 @@ class ConstraintsMixIn(object):
         """
         if not self._fixed_value_constraints.satisfied(x_k, opti_math):
             raise RuntimeError('Fixed-value constraints are violated')
-        if not self._equality_constraints.satisfied(x_k):
+        if not self._equality_constraints.satisfied(x_k, opti_math):
             raise RuntimeError('Equality constraints are violated.')
-        if not self._inequality_constraints.satisfied(x_k):
+        if not self._inequality_constraints.satisfied(x_k, opti_math):
             raise RuntimeError('Inequality constraints are violated')
         if not self._bound_constraints.satisfied(x_k, opti_math):
             raise RuntimeError('Bound constraints are violated')
@@ -82,32 +85,54 @@ class ConstraintsMixIn(object):
         """
         if self._equality_constraints.is_empty() and self._fixed_value_constraints.is_empty():
             return initializer
-        merged_equality_constraints = merge_constraints(self._equality_constraints, self._fixed_value_constraints)
-        return merged_equality_constraints.initialize(initializer, config, opti_math, diary)
+        elif self._equality_constraints.is_empty():
+            return self._fixed_value_constraints.initialize(initializer, config, opti_math, diary)
+        elif self._fixed_value_constraints.is_empty():
+            return self._equality_constraints.initialize(initializer, config, opti_math, diary)
+
+        def _satisfied(x_k, _opti_math):
+            return all(map(lambda c: c.satisfied(x_k, _opti_math),
+                           [self._equality_constraints, self._fixed_value_constraints]))
+
+        def _director(x_k, d_k, _opti_math, _diary):
+            for c in [self._equality_constraints, self._fixed_value_constraints]:
+                d_k = c.initialization_direction(x_k, d_k, _opti_math, _diary)
+            return d_k
+
+        def _stepper(k, x_k, d_k, length, _opti_math, _diary):
+            for c in [self._equality_constraints, self._fixed_value_constraints]:
+                length = c.initialization_stepper(k, x_k, d_k, length, _opti_math, _diary)
+            return length
+
+        return opti_math.optimize(initializer, _satisfied, _director, _stepper, config.initialization_max_iters, diary)
 
     def __inequality_initialize(self, initializer, config, opti_math, diary):
         if self._inequality_constraints.is_empty() and self._bound_constraints.is_empty():
             return initializer
+        elif self._inequality_constraints.is_empty():
+            return self._bound_constraints.initialize(initializer, config, opti_math, diary)
+        elif self._bound_constraints.is_empty():
+            return self._inequality_constraints.initialize(initializer, config, opti_math, diary)
 
         diary.set_items(x=initializer.copy(),
                         msg_constrained_initialize='Initialized for equalities constraints. Now for both.')
 
         def _satisfied(x_k, _opti_math):
-            for c in [self._equality_constraints, self._fixed_value_constraints,
-                      self._inequality_constraints, self._bound_constraints]:
-                if not c.satisfied(x_k, _opti_math):
-                    return False
-            return True
+            return all(map(lambda c: c.satisfied(x_k, _opti_math),
+                           [self._equality_constraints, self._fixed_value_constraints,
+                            self._inequality_constraints, self._bound_constraints]))
 
-        def _director(x_k, _opti_math, _diary):
-            d_k = self._inequality_constraints.initialization_direction(x_k, _opti_math, _diary)
+        def _director(x_k, d_k, _opti_math, _diary):
+            for c in [self._inequality_constraints, self._bound_constraints]:
+                d_k = c.initialization_direction(x_k, d_k, _opti_math, _diary)
             diary.set_items(inequality_direction=d_k.copy())
             for c in [self._equality_constraints, self._fixed_value_constraints]:
                 d_k = c.direction(x_k, d_k, _opti_math, _diary)
             return d_k
 
-        def _stepper(k, x_k, d_k, _opti_math, _diary):
-            length = self._inequality_constraints.initialization_steplength(k, x_k, d_k, _opti_math, _diary)
+        def _stepper(k, x_k, d_k, length, _opti_math, _diary):
+            for c in [self._inequality_constraints, self._bound_constraints]:
+                length = c.initialization_steplength(k, x_k, d_k, length, _opti_math, _diary)
             for c in [self._equality_constraints, self._fixed_value_constraints]:
                 length = c.steplength(k, x_k, d_k, length, _opti_math, _diary)
             return length

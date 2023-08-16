@@ -1,7 +1,7 @@
 import numpy as np
 
 from sawdown import constraints
-from sawdown.proto import sawdown_pb2
+from sawdown.proto import sawdown_pb2, serializer
 from sawdown.optimizers import base, branch_and_bound
 
 
@@ -51,7 +51,7 @@ class MipOptimizer(base.OptimizerBase, constraints.IntegerConstraintsMixIn, bran
             initializer = init.initialize(initializer)
 
         if initializer is not None:
-            initial_problem.initializer = proto.serializer.encode_ndarray(initializer)
+            initial_problem.initializer = serializer.encode_ndarray(initializer)
         initial_problem.diary_id = diary.new_sub_id()
 
         return [initial_problem]
@@ -111,7 +111,7 @@ class MipOptimizer(base.OptimizerBase, constraints.IntegerConstraintsMixIn, bran
 
                 initializer = x.copy()
                 initializer[split_idx] = bound
-                new_problem.initializer.CopyFrom(proto.serializer.encode_ndarray(initializer))
+                new_problem.initializer.CopyFrom(serializer.encode_ndarray(initializer))
                 new_problem.diary_id = diary.new_sub_id()
                 sub_problems.append(new_problem)
         else:
@@ -141,7 +141,7 @@ class MipOptimizer(base.OptimizerBase, constraints.IntegerConstraintsMixIn, bran
 
                 initializer = x.copy()
                 initializer[split_idx] = bound
-                new_problem.initializer.CopyFrom(proto.serializer.encode_ndarray(initializer))
+                new_problem.initializer.CopyFrom(serializer.encode_ndarray(initializer))
                 new_problem.diary_id = diary.new_sub_id()
                 sub_problems.append(new_problem)
 

@@ -85,15 +85,18 @@ class OptiMath(SawMath):
         self._sqrt_epsilon = np.sqrt(self._epsilon)
 
     def optimize(self, initializer, satisfier, director, stepper, max_iters, diary):
+        """
+        Only used for initializing into a feasible region defined by various type of constraints.
+        """
         x_k = initializer.copy()
-        if satisfier(x_k, opti_math=self):
+        if satisfier(x_k, self):
             diary.set_solution(x=x_k.copy(), objective=np.nan, termination=diaries.Termination.SATISFIED)
             return x_k
 
         termination = diaries.Termination.CONTINUE
         for k in diary.as_long_as(lambda: termination == diaries.Termination.CONTINUE):
-            d_k = director(x_k, self, diary)
-            delta = stepper(k, x_k, d_k, self, diary)
+            d_k = director(x_k, None, self, diary)
+            delta = stepper(k, x_k, d_k, 2., self, diary)
             diary.set_items(x_k=x_k.copy(), delta=delta, d_k=d_k.copy())
 
             x_k += delta * d_k

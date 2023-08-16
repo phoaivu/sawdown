@@ -3,21 +3,7 @@ from sawdown import errors
 from sawdown.constraints import base
 
 
-class InequalityConstraints(object):
-
-    def initialization_direction(self, x_k, opti_math, diary):
-        raise NotImplementedError()
-
-    def initialization_steplength(self, k, x_k, d_k, opti_math, diary):
-        raise NotImplementedError()
-
-
-class EmptyInequalityConstraints(base.EmptyConstraints, InequalityConstraints):
-    def clone(self):
-        return EmptyInequalityConstraints()
-
-
-class BoundConstraints(base.ConstraintsBase, InequalityConstraints):
+class BoundConstraints(base.ConstraintsBase):
     def __init__(self, variables=()):
         variables = [v for v in variables if np.isfinite(v.lower_bound) or np.isfinite(v.upper_bound)]
         if any(v.lower_bound >= v.upper_bound for v in variables):
@@ -31,9 +17,39 @@ class BoundConstraints(base.ConstraintsBase, InequalityConstraints):
         self._lower_bounds = np.asarray([v.lower_bound for v in self._variables], dtype=float)
         self._upper_bounds = np.asarray([v.upper_bound for v in self._variables], dtype=float)
 
-    # TODO: implement this
+    def clone(self):
+        return BoundConstraints([v.clone() for v in self._variables])
+
+    def merge(self, other):
+        assert isinstance(other, BoundConstraints)
+        return BoundConstraints([v.clone() for v in self._variables + other._variables])
+
     def satisfied(self, x, opti_math):
         return opti_math.in_bounds(x[self._indices], self._lower_bounds, self._upper_bounds)
+
+    def initialization_direction(self, x_k, d_k, opti_math, diary):
+        violate_lower = opti_math.lt(x_k[self._indices], self._lower_bounds)
+        violate_upper = opti_math.gt(x_k[self._indices], self._upper_bounds)
+        direction = np.zeros_like(x_k, dtype=float)
+        direction[self._indices][violate_lower] = self._lower_bounds[violate_lower] - x_k[self._indices][violate_lower]
+        direction[self._indices][violate_upper] = self._upper_bounds[violate_upper] - x_k[self._indices][violate_upper]
+        if d_k is not None:
+            direction = d_k + direction
+        return direction
+
+    def initialization_steplength(self, k, x_k, d_k, max_steplength, opti_math, diary):
+        return np.minimum(max_steplength, 1. + np.exp(-float(k) / opti_math.initialization_decay_steps))
+
+    def initialize(self, initializer, config, opti_math, diary):
+        if initializer is None:
+            raise ValueError('Unknown variable dimension. Try hinting the optimizer '
+                             'via one of the initialization method')
+        if max(self._indices) >= initializer.size:
+            raise ValueError('There is bound constraint for variable #{}, '
+                             'but initialized variable dimension is {}'.format(max(self._indices), initializer.size))
+
+        return opti_math.optimize(initializer, self.satisfied, self.initialization_direction,
+                                  self.initialization_steplength, config.initialization_max_iters, diary)
 
     def direction(self, x_k, d_k, opti_math, diary):
         if not np.all(opti_math.lt(self._lower_bounds, self._upper_bounds)):
@@ -69,23 +85,26 @@ class BoundConstraints(base.ConstraintsBase, InequalityConstraints):
         return max_steplength
 
 
-class LinearInequalityConstraints(base.LinearConstraints, InequalityConstraints):
+class LinearInequalityConstraints(base.LinearConstraints):
     def __init__(self, a, b):
         base.LinearConstraints.__init__(self, a, b)
         self._lagrange_bouncing = False
         self._active_constraints = None
 
-    def initialization_direction(self, x_k, opti_math, diary):
+    def satisfied(self, x, opti_math):
+        return np.all(opti_math.non_negative(self.residuals(x)))
+
+    def initialization_direction(self, x_k, d_k, opti_math, diary):
         residuals = self.residuals(x_k)
         mask = opti_math.true_negative(residuals)
         lengths = -residuals[mask] / np.sum(np.square(self._a[mask, :]), axis=1)
-        return np.matmul(lengths[None, :], self._a[mask, :]).squeeze(axis=0)
+        direction = np.matmul(lengths[None, :], self._a[mask, :]).squeeze(axis=0)
+        if d_k is not None:
+            direction = d_k + direction
+        return direction
 
-    def initialization_steplength(self, k, x_k, d_k, opti_math, diary):
-        return 1. + np.exp(-float(k) / opti_math.initialization_decay_steps)
-
-    def satisfied(self, x, opti_math):
-        return np.all(opti_math.non_negative(self.residuals(x)))
+    def initialization_steplength(self, k, x_k, d_k, max_steplength, opti_math, diary):
+        return np.minimum(max_steplength, 1. + np.exp(-float(k) / opti_math.initialization_decay_steps))
 
     def initialize(self, initializer, config, opti_math, diary):
         x_0 = np.zeros((self.var_dim(),), dtype=float) if initializer is None else initializer.copy()

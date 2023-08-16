@@ -1,8 +1,7 @@
 import pickle
 
 from sawdown import objectives, initializers, constraints, directions, steplengths, stoppers, config, opti_math
-from sawdown.proto import sawdown_pb2
-from proto import serializer
+from sawdown.proto import sawdown_pb2, serializer
 
 
 class OptimizerBase(constraints.ConstraintsMixIn):
