@@ -23,7 +23,22 @@ class Declaration(object):
         return self
 
     def fixed_initializer(self, initializer):
-        self._problem.fixed_initializer.CopyFrom(serializer.encode_ndarray(initializer))
+        self._problem.initializers.append(sawdown_pb2.Initializer(
+            fixed_initializer=serializer.encode_ndarray(initializer)))
+        return self
+
+    def constant_initializer(self, var_dim=1, constant=0.):
+        """
+        Initialize with a vector of dimension `var_dim` containing all `constant`. Both arguments are scalars.
+        """
+        return self.fixed_initializer(np.ones((var_dim, ), dtype=float) * constant)
+
+    def zeros_initializer(self, var_dim=1):
+        return self.fixed_initializer(np.zeros((var_dim, ), dtype=float))
+
+    def uniform_initializer(self, var_dim=1, low=0., high=1.):
+        self._problem.initializers.append(sawdown_pb2.Initializer(
+            uniform_initializer=sawdown_pb2.UniformInitializer(var_dim=var_dim, low=low, high=high)))
         return self
 
     # Constraints
@@ -54,8 +69,20 @@ class Declaration(object):
         return self
 
     def bound_constraint(self, var_index=0, lower=-np.inf, upper=np.inf):
-        self._problem.bound_constraints.append(
-            sawdown_pb2.BoundConstraint(var_index=var_index, lower=lower, upper=upper))
+        return self.bound_constraints((var_index,), (lower, ), (upper, ))
+
+    def bound_constraints(self, var_indices=(), lower_bounds=(), upper_bounds=()):
+        lower_bounds = tuple(lower_bounds)
+        upper_bounds = tuple(upper_bounds)
+        if len(set(var_indices)) < len(var_indices):
+            raise ValueError('Duplicated variable indices')
+        if len(lower_bounds) == 1 and len(var_indices) > 1:
+            lower_bounds = [lower_bounds[0] for _ in var_indices]
+        if len(upper_bounds) == 1 and len(var_indices) > 1:
+            upper_bounds = [upper_bounds[0] for _ in var_indices]
+        for index, lower, upper in zip(var_indices, lower_bounds, upper_bounds):
+            self._problem.bound_constraints.append(
+                sawdown_pb2.BoundConstraint(var_index=index, lower=lower, upper=upper))
         return self
 
     def steepest_descent(self):
@@ -152,12 +179,28 @@ class FirstOrderOptimizer(Declaration):
 class MipOptimizer(Declaration):
 
     def integer_constraint(self, var_index=0, lower_bound=-np.inf, upper_bound=np.inf):
-        self._problem.integer_constraints.append(
-            sawdown_pb2.BoundConstraint(var_index=var_index, lower=lower_bound, upper=upper_bound))
+        return self.integer_constraints((var_index,), (lower_bound,), (upper_bound,))
+
+    def integer_constraints(self, var_indices=(), lower_bound=(), upper_bound=()):
+        lower_bound = tuple(lower_bound)
+        upper_bound = tuple(upper_bound)
+        if len(set(var_indices)) < len(var_indices):
+            raise ValueError('Duplicated variable indices')
+        if len(lower_bound) == 1 and len(var_indices) > 1:
+            lower_bound = [lower_bound[0] for _ in var_indices]
+        if len(upper_bound) == 1 and len(var_indices) > 1:
+            upper_bound = [upper_bound[0] for _ in var_indices]
+        for index, lower, upper in zip(var_indices, lower_bound, upper_bound):
+            self._problem.integer_constraints.append(
+                sawdown_pb2.BoundConstraint(var_index=index, lower=lower, upper=upper))
         return self
 
     def binary_constraint(self, var_index=0):
-        self._problem.binary_constraints.append(var_index)
+        return self.binary_constraints((var_index, ))
+
+    def binary_constraints(self, var_indices=()):
+        for i in sorted(set(var_indices)):
+            self._problem.binary_constraints.append(i)
         return self
 
     def binary_mapping(self, mode='zero-ones'):

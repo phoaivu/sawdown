@@ -39,12 +39,18 @@ class OptimizerBase(constraints.ConstraintsMixIn):
         else:
             raise ValueError('Undefined objective')
 
-        field_name = proto_problem.WhichOneof('initializer')
-        if field_name == 'fixed_initializer':
-            self._initializers.append(initializers.FixedInitializer(
-                serializer.decode_ndarray(proto_problem.fixed_initializer)))
-        elif field_name is not None:
-            raise ValueError('Unsupported initializer: {}'.format(field_name))
+        for proto_initializer in proto_problem.initializers:
+            field_name = proto_initializer.WhichOneof('initializer')
+            if field_name == 'fixed_initializer':
+                self._initializers.append(initializers.FixedInitializer(
+                    serializer.decode_ndarray(proto_initializer.fixed_initializer)))
+            elif field_name == 'uniform_initializer':
+                self._initializers.append(initializers.UniformInitializer(
+                    var_dim=proto_initializer.uniform_initializer.var_dim,
+                    low=proto_initializer.uniform_initializer.low,
+                    high=proto_initializer.uniform_initializer.high))
+            elif field_name is not None:
+                raise ValueError('Unsupported initializer: {}'.format(field_name))
 
         field_name = proto_problem.WhichOneof('direction_calculator')
         if field_name == 'steepest_descent':

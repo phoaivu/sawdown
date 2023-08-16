@@ -1,4 +1,3 @@
-import os
 import multiprocessing
 import queue
 
@@ -41,12 +40,14 @@ class Worker(multiprocessing.Process):
         self._diary_response_semaphore = response_semaphore
 
     def run(self):
-        problem = self._problems.get()
-        while problem is not None:
+        problem_proto = self._problems.get()
+        while problem_proto is not None:
+            problem = sawdown_pb2.IntegerSubproblem()
+            problem.MergeFromString(problem_proto)
             solution = _solve(self._relaxed_problem, problem,
                               self._diary_message, self._diary_response, self._diary_response_semaphore)
-            self._solutions.put((problem, solution))
-            problem = self._problems.get()
+            self._solutions.put((problem_proto, solution))
+            problem_proto = self._problems.get()
 
 
 class BranchAndBounder(diaries.AsyncDiaryMixIn):
@@ -96,7 +97,7 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
         n_unsolved_problems = 0
 
         for problem in initial_problems:
-            problems.put(problem)
+            problems.put(problem.SerializeToString())
         n_unsolved_problems = len(initial_problems)
 
         workers = [Worker(relaxed_problem, problems, solutions, self._diary_message, self._diary_response,
@@ -105,12 +106,16 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
 
         for _ in diary.as_long_as(lambda: n_unsolved_problems > 0):
             if self._n_processes == 0:
-                problem = problems.get()
+                problem_proto = problems.get()
+                problem = sawdown_pb2.IntegerSubproblem()
+                problem.MergeFromString(problem_proto)
                 solution = _solve(relaxed_problem, problem,
                                   self._diary_message, self._diary_response, self._diary_response_semaphore)
-                solutions.put((problem, solution))
+                solutions.put((problem_proto, solution))
 
-            sub_problem, sub_solution = solutions.get()
+            sub_problem_proto, sub_solution = solutions.get()
+            sub_problem = sawdown_pb2.IntegerSubproblem()
+            sub_problem.MergeFromString(sub_problem_proto)
             n_unsolved_problems -= 1
 
             if sub_solution.x is None:
@@ -126,7 +131,7 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
                     diary.set_items(msg_sub='Better optima found. Updated best solution')
                 else:
                     sub_problems = self._branch(sub_problem, sub_solution, diary)
-                    [problems.put(p) for p in sub_problems]
+                    [problems.put(p.SerializeToString()) for p in sub_problems]
                     n_unsolved_problems += len(sub_problems)
                     diary.set_items(msg_sub='Promising optima found. '
                                             'Branch into {} sub-problems'.format(len(sub_problems)))

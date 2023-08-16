@@ -53,8 +53,16 @@ message BoundConstraint {
 // Initializers
 
 message UniformInitializer {
-    NdArray a = 1;
-    NdArray b = 2;
+    uint64 var_dim = 1;
+    double low = 2;
+    double high = 3;
+}
+
+message Initializer {
+    oneof initializer {
+        NdArray fixed_initializer = 1;
+        UniformInitializer uniform_initializer = 2;
+    }
 }
 
 // Direction calculator
@@ -152,30 +160,27 @@ message Problem {
         Method instance_objective = 11;
     }
 
-    oneof initializer {
-        NdArray fixed_initializer = 30;
-        UniformInitializer uniform_initializer = 31;
-    }
+    repeated Initializer initializers = 30;
 
-    repeated LinearConstraint linear_inequalities = 50;
-    repeated LinearConstraint linear_equalities = 51;
-    repeated FixedValueConstraint fixed_value_constraints = 52;
-    repeated BoundConstraint bound_constraints = 53;
+    repeated LinearConstraint linear_inequalities = 31;
+    repeated LinearConstraint linear_equalities = 32;
+    repeated FixedValueConstraint fixed_value_constraints = 33;
+    repeated BoundConstraint bound_constraints = 34;
 
-    repeated BoundConstraint integer_constraints = 54;
-    repeated int64 binary_constraints = 55;
+    repeated BoundConstraint integer_constraints = 35;
+    repeated int64 binary_constraints = 36;
 
 
     oneof direction_calculator {
-        SteepestDescent steepest_descent = 60;
-        ConjugateGradient conjugate_gradient = 61;
-        Adam adam = 62;
+        SteepestDescent steepest_descent = 50;
+        ConjugateGradient conjugate_gradient = 51;
+        Adam adam = 52;
     }
-    repeated Steplength steplength_calculators = 80;
-    repeated Stopper stoppers = 81;
+    repeated Steplength steplength_calculators = 70;
+    repeated Stopper stoppers = 71;
 
-    Configuration config = 90;
-    repeated Diary diaries = 91;
+    Configuration config = 80;
+    repeated Diary diaries = 81;
 }
 
 // Used in Integer programs solvers.
