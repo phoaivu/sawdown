@@ -26,9 +26,9 @@ message Method {
     optional string module = 3;
 }
 
-message FunctorObjective {
-    Method objective = 1;
-    Method gradient = 2;
+message PythonFunctions {
+    bytes objective = 1;
+    bytes gradient = 2;
 }
 
 
@@ -50,15 +50,6 @@ message BoundConstraint {
     double upper = 3;
 }
 
-message Constraints {
-    LinearConstraint linear_inequalities = 1;
-    LinearConstraint linear_equalities = 2;
-    repeated FixedValueConstraint fixed_value_constraints = 3;
-    repeated BoundConstraint bound_constraints = 4;
-    repeated BoundConstraint integer_constraints = 5;
-    repeated int64 binary_constraints = 6;
-}
-
 // Initializers
 
 message UniformInitializer {
@@ -66,27 +57,130 @@ message UniformInitializer {
     NdArray b = 2;
 }
 
+// Direction calculator
+message SteepestDescent {
+}
+
+message ConjugateGradient {
+    double beta = 1;
+}
+
+message Adam {
+    double alpha = 1;
+    double beta = 2;
+}
+
+// Steplength calculators
+message QuadraticInterpolation {
+}
+message DecayedSteplength {
+    int64 decay_steps = 1;
+}
+message CircleDetection {
+    int64 circle_length = 1;
+}
+message Steplength {
+    oneof steplength_calculator {
+        QuadraticInterpolation quadratic_interpolation = 1;
+        DecayedSteplength decayed_steplength = 2;
+        CircleDetection circle_detection = 3;
+    }
+}
+
+// Stoppers. This is more general than having a set of non-exclusive data fields.
+message MaxIterationsStopper {
+    int64 max_iters = 1;
+}
+message InfinitesimalStepStopper {
+}
+message Stopper {
+    oneof stopper {
+        MaxIterationsStopper max_iters_stopper = 1;
+        InfinitesimalStepStopper infinitesimal_step_stopper = 2;
+    }
+}
+
+// Configuration
+enum BinaryMappingMode {
+    BINARY_MAPPING_UNSPECIFIED = 0;
+    BINARY_MAPPING_ZERO_ONE = 1;
+    BINARY_MAPPING_ONES = 2;
+}
+
 message Configuration {
     double epsilon = 1;
+    BinaryMappingMode binary_mapping_mode = 2;
+    uint64 initialization_max_iters = 3;
+    uint64 initialization_decay_steps = 4;
+}
+
+// Diary
+message MemoryDiary {
+}
+
+message StreamDiary {
+    string stream = 1;
+}
+message FileDiary {
+    string path = 1;
+    string job_name = 2;
+}
+
+message Diary {
+    oneof diary {
+        MemoryDiary memory_diary = 1;
+        StreamDiary stream_diary = 2;
+        FileDiary file_diary = 3;
+    }
 }
 
 // Got a problem.
+enum ProblemType {
+    PROBLEM_TYPE_UNSPECIFIED = 0;
+    PROBLEM_TYPE_FIRST_ORDER = 1;
+    PROBLEM_TYPE_MIP = 2;
+}
 
 message Problem {
+    ProblemType problem_type = 1;
+
     oneof objective {
-        FunctorObjective functor_objective = 1;
-        Method instance_objective = 2;
+        PythonFunctions python_func_objective = 10;
+        Method instance_objective = 11;
     }
-    Constraints constraints = 20;
+
     oneof initializer {
         NdArray fixed_initializer = 30;
         UniformInitializer uniform_initializer = 31;
     }
-    Method direction_calculator = 50;
-    repeated Method steplength_calculators = 51;
-    repeated Method stoppers = 52;
 
-    Configuration config = 60;
+    repeated LinearConstraint linear_inequalities = 50;
+    repeated LinearConstraint linear_equalities = 51;
+    repeated FixedValueConstraint fixed_value_constraints = 52;
+    repeated BoundConstraint bound_constraints = 53;
+
+    repeated BoundConstraint integer_constraints = 54;
+    repeated int64 binary_constraints = 55;
+
+
+    oneof direction_calculator {
+        SteepestDescent steepest_descent = 60;
+        ConjugateGradient conjugate_gradient = 61;
+        Adam adam = 62;
+    }
+    repeated Steplength steplength_calculators = 80;
+    repeated Stopper stoppers = 81;
+
+    Configuration config = 90;
+    repeated Diary diaries = 91;
+}
+
+// Used in Integer programs solvers.
+message IntegerSubproblem {
+    optional NdArray initializer = 1;
+    repeated FixedValueConstraint fixed_value_constraints = 2;
+    repeated BoundConstraint bound_constraints = 3;
+    string diary_id = 4;
 }
 
 // Got a solution.

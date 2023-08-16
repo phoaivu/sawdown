@@ -6,6 +6,13 @@ import numpy as np
 from sawdown.diaries import readers
 
 
+class DiaryWorkerMessageType(enum.IntEnum):
+    ENTRY = 1
+    STOP = 2
+    REQUEST_ITERATION_DATA = 3
+    REQUEST_READER_CONFIG = 4
+
+
 class Termination(enum.IntEnum):
     CONTINUE = 0
     FAILED_INITIALIZATION = 1

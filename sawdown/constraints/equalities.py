@@ -14,13 +14,15 @@ class LinearEqualityConstraints(base.LinearConstraints):
         if not np.all(np.isfinite(self._master_projector)):
             raise RuntimeError('Machine is tired, or math is wrong')
 
-    def satisfied(self, x):
-        return np.all(self._opti_math.equal_zeros(self.residuals(x)))
+    def satisfied(self, x, opti_math):
+        return np.all(opti_math.equal_zeros(self.residuals(x)))
 
-    def initialize(self, initializer, diary):
+    def initialize(self, initializer, config, opti_math, diary):
         """
 
         :param initializer:
+        :param config:
+        :param opti_math:
         :param diary:
         :return: initializer
         :rtype: np.ndarray
@@ -45,25 +47,26 @@ class LinearEqualityConstraints(base.LinearConstraints):
                 delta = min((-beta / (2. * alpha)).squeeze(), 1)
             return delta
 
-        return self._opti_math.optimize(x_0, self.satisfied, _director, _stepper, diary)
+        return opti_math.optimize(x_0, self.satisfied, _director, _stepper, config.initialization_max_iters, diary)
 
-    def direction(self, x_k, d_k, diary):
+    def direction(self, x_k, d_k, opti_math, diary):
         return np.matmul(self._master_projector, d_k[:, None]).squeeze(axis=-1)
 
-    def steplength(self, k, x_k, d_k, max_steplength, diary):
+    def steplength(self, k, x_k, d_k, max_steplength, opti_math, diary):
         """
 
         :param k:
         :param x_k:
         :param d_k:
         :param max_steplength:
+        :param opti_math:
         :param diary:
         :return: modified steplength
         :rtype: float
         """
         # If there are constraints whose gradients are not orthogonal to d_k, then return 0.
         a_d_k = np.matmul(self._a, d_k[:, None]).squeeze(axis=1)
-        if np.any(self._opti_math.non_zeros(a_d_k)):
+        if np.any(opti_math.non_zeros(a_d_k)):
             return 0.
         return max_steplength
 
@@ -74,7 +77,6 @@ class FixedValueConstraints(base.ConstraintsBase):
             raise ValueError('Use EmptyConstraints instead')
         if -1 < total_dim <= max(v.index for v in variables):
             raise ValueError('total_dim must be at least greater than the max. variable index')
-
         for i in range(len(variables) - 1):
             var = variables[i]
             if any([v.value != var.value for v in variables[i+1:] if v.index == var.index]):
@@ -84,18 +86,12 @@ class FixedValueConstraints(base.ConstraintsBase):
         self._total_dim = total_dim
         self._indices = [v.index for v in self._variables]
         self._values = [v.value for v in self._variables]
-        self._opti_math = None
 
     def var_dim(self):
         return self._total_dim
 
     def clone(self):
-        c = FixedValueConstraints([v.clone() for v in self._variables], self._total_dim)
-        c.setup(None, self._opti_math)
-        return c
-
-    def setup(self, objective, opti_math, **kwargs):
-        self._opti_math = opti_math
+        return FixedValueConstraints([v.clone() for v in self._variables], self._total_dim)
 
     def merge(self, other):
         assert isinstance(other, FixedValueConstraints)
@@ -104,8 +100,8 @@ class FixedValueConstraints(base.ConstraintsBase):
         dim = self._total_dim if self._total_dim != -1 else other._total_dim
         return FixedValueConstraints([v.clone() for v in self._variables + other._variables], dim)
 
-    def satisfied(self, x):
-        return np.all(self._opti_math.equal_zeros(x[self._indices] - np.asarray(self._values, dtype=float)))
+    def satisfied(self, x, opti_math):
+        return np.all(opti_math.equal_zeros(x[self._indices] - np.asarray(self._values, dtype=float)))
 
     def to_equalities(self, var_dim):
         """
@@ -120,25 +116,12 @@ class FixedValueConstraints(base.ConstraintsBase):
         b = -np.fromiter(self._values, dtype=float)
         return LinearEqualityConstraints(a, b)
 
-    def initialize(self, initializer, diary):
-        if initializer is None:
-            if self._total_dim < 0:
-                raise errors.InitializationError('Do not know the variable dimension.'
-                                                 'Set total_dim, or provide an initializer')
-            initializer = np.zeros((self._total_dim, ), dtype=float)
-
-        if -1 < self._total_dim != initializer.size:
-            raise ValueError('Conflict of information: total_dim={} while initializer has shape {}'.format(
-                self._total_dim, initializer.shape))
-        initializer[self._indices] = self._values
-        return initializer
-
-    def direction(self, x_k, d_k, diary):
+    def direction(self, x_k, d_k, opti_math, diary):
         projected_d_k = d_k.copy()
         projected_d_k[self._indices] = 0.
         return projected_d_k
 
-    def steplength(self, k, x_k, d_k, max_steplength, diary):
-        if np.any(self._opti_math.non_zeros(d_k[self._indices])):
+    def steplength(self, k, x_k, d_k, max_steplength, opti_math, diary):
+        if np.any(opti_math.non_zeros(d_k[self._indices])):
             return 0.
         return max_steplength

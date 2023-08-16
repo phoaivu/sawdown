@@ -3,44 +3,6 @@ import numpy as np
 
 # TODO: decayed steplength is Computer Scientist's trick. Maybe replace it by Wolfe conditions.
 
-class SteplengthMixIn(object):
-    def __init__(self):
-        self._steplength_calculators = []
-
-    def _setup(self, objective, opti_math, **kwargs):
-        [c.setup(objective, opti_math, **kwargs) for c in self._steplength_calculators]
-
-    def _steplength(self, k, x_k, d_k, diary):
-        steplength = 1.
-        for calculator in self._steplength_calculators:
-            steplength = calculator.steplength(k, x_k, d_k, steplength)
-        return steplength
-
-    def steplength_calculators_from(self, other):
-        assert isinstance(other, SteplengthMixIn)
-        self._steplength_calculators = [c.clone() for c in other._steplength_calculators]
-        return self
-
-    def decay_steplength(self, decay_steps=100):
-        self._steplength_calculators.append(DecaySteplength(decay_steps=decay_steps))
-        return self
-
-    def quadratic_interpolation_steplength(self):
-        """
-        Designed for minimizing quadratic functions.
-        :return:
-        """
-        self._steplength_calculators.append(QuadraticInterpolationSteplength())
-        return self
-
-    def circle_detection_steplength(self, circle_length=2):
-        """
-        Halve the step-length when rolling-in-the-loop is detected.
-        :return:
-        """
-        self._steplength_calculators.append(CircleDetectionSteplength(circle_length))
-        return self
-
 
 class SteplengthBase(object):
     def setup(self, objective, opti_math, **kwargs):

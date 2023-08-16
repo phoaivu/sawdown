@@ -1,6 +1,31 @@
 import numpy as np
 
+from sawdown import config
 from sawdown.constraints import base, inequalities, equalities
+
+
+def _range_constraints(variables, var_dim=-1):
+    if not any(map(lambda _v: np.isfinite(_v.lower_bound) or np.isfinite(_v.upper_bound), variables)):
+        return base.EmptyConstraints()
+
+    if var_dim < 0:
+        raise ValueError('Unknown variable dimension')
+    constraint_a = []
+    constraint_b = []
+    for v in variables:
+        if np.isfinite(v.lower_bound):
+            a = np.zeros((1, var_dim), dtype=float)
+            a[0, v.index] = 1.
+            constraint_a.append(a)
+            constraint_b.append(-v.lower_bound)
+        if np.isfinite(v.upper_bound):
+            a = np.zeros((1, var_dim), dtype=float)
+            a[0, v.index] = -1.
+            constraint_a.append(a)
+            constraint_b.append(v.upper_bound)
+
+    return inequalities.LinearInequalityConstraints(np.vstack(constraint_a),
+                                                    np.asarray(constraint_b, dtype=float))
 
 
 class IntegerityConstraintsBase(object):
@@ -29,20 +54,9 @@ class IntegerityConstraints(base.ConstraintsBase, IntegerityConstraintsBase):
             raise ValueError('Invalid lower bound and upper bound for integer variables')
         if total_dim >= 0 and any(v.index >= total_dim for v in variables):
             raise ValueError('total_dim has to be at least greater than the max. variable index')
-
-        filtered_vars = []
-        for var_index in set([v.index for v in variables]):
-            reps = [v for v in variables if v.index == var_index]
-            lower_bound = np.max([v.lower_bound for v in reps])
-            upper_bound = np.min([v.upper_bound for v in reps])
-            if np.ceil(lower_bound) > np.floor(upper_bound):
-                raise ValueError('Infeasible bound for variable index {}: [{}, {}]'.format(
-                    var_index, lower_bound, upper_bound))
-            if len(reps) > 1:
-                # TODO: properly write into diaries.
-                print('Reset variable {} bounds to be [{}, {}]'.format(var_index, lower_bound, upper_bound))
-            filtered_vars.append(base.BoundedVariable(var_index, lower_bound, upper_bound))
-        self._variables = filtered_vars
+        if len(set(v.index for v in variables)) < len(variables):
+            raise ValueError('Duplicated entries in the list of variables')
+        self._variables = variables
 
         self._total_dim = total_dim
         self._opti_math = None
@@ -71,10 +85,10 @@ class IntegerityConstraints(base.ConstraintsBase, IntegerityConstraintsBase):
         dim = self._total_dim if self._total_dim != -1 else other._total_dim
         return IntegerityConstraints([v.clone() for v in self._variables + other._variables], dim)
 
-    def satisfied(self, x):
+    def satisfied(self, x, opti_math):
         values = x[self._indices]
-        return np.all(np.logical_and(self._opti_math.equals(values, np.round(values)),
-                                     self._opti_math.in_bounds(values, self._lower_bounds, self._upper_bounds)))
+        return np.all(np.logical_and(opti_math.equals(values, np.round(values)),
+                                     opti_math.in_bounds(values, self._lower_bounds, self._upper_bounds)))
 
     def range_constraints(self, var_dim=-1):
         """
@@ -82,30 +96,7 @@ class IntegerityConstraints(base.ConstraintsBase, IntegerityConstraintsBase):
         :param var_dim:
         :return:
         """
-        if not any(map(lambda _v: np.isfinite(_v.lower_bound) or np.isfinite(_v.upper_bound), self._variables)):
-            return base.EmptyConstraints()
-
-        var_dim = var_dim if var_dim > 0 else self.var_dim()
-        if var_dim < 0:
-            raise ValueError('Unknown variable dimension')
-        constraint_a = []
-        constraint_b = []
-        for v in self._variables:
-            if np.isfinite(v.lower_bound):
-                a = np.zeros((1, var_dim), dtype=float)
-                a[0, v.index] = 1.
-                constraint_a.append(a)
-                constraint_b.append(-v.lower_bound)
-            if np.isfinite(v.upper_bound):
-                a = np.zeros((1, var_dim), dtype=float)
-                a[0, v.index] = -1.
-                constraint_a.append(a)
-                constraint_b.append(v.upper_bound)
-
-        c = inequalities.LinearInequalityConstraints(np.vstack(constraint_a),
-                                                     np.asarray(constraint_b, dtype=float))
-        c.setup(None, self._opti_math)
-        return c
+        return _range_constraints(self._variables, var_dim if var_dim > 0 else self.var_dim())
 
     def split(self, var_idx, bound, leq=True):
         """
@@ -172,3 +163,4 @@ class IntegerityConstraints(base.ConstraintsBase, IntegerityConstraintsBase):
         fixed_value_constraints = (base.EmptyConstraints() if len(fixed_vars) == 0 else
                                    equalities.FixedValueConstraints(fixed_vars, self._total_dim))
         return integerity_constraints, fixed_value_constraints
+

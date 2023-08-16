@@ -1,37 +1,6 @@
 import numpy as np
 
 
-class DirectionMixIn(object):
-    def __init__(self):
-        self._direction_calculator = None
-
-    def _setup(self, objective, opti_math, **kwargs):
-        self._direction_calculator.setup(objective, opti_math, **kwargs)
-
-    def _direction(self, k, x_k, derivatives, diary):
-        diary.set_items(derivative=derivatives.copy())
-        if self._direction_calculator is None:
-            return derivatives
-        return self._direction_calculator.direction(k, x_k, derivatives, diary)
-
-    def direction_calculator_from(self, other):
-        assert isinstance(other, DirectionMixIn)
-        self._direction_calculator = other._direction_calculator.clone()
-        return self
-
-    def steepest_descent(self):
-        self._direction_calculator = SteepestDecent()
-        return self
-
-    def conjugate_gradient(self, beta=0.9):
-        self._direction_calculator = ConjugateGradient(beta)
-        return self
-
-    def adam(self, alpha=0.9, beta=0.999):
-        self._direction_calculator = Adam(alpha, beta)
-        return self
-
-
 class DirectionCalculatorBase(object):
 
     def clone(self):

@@ -11,7 +11,7 @@ setup(
     name='sawdown',
     version='0.1',
     package_dir={'': 'sawdown'},
-    py_modules=['constraints', 'diaries', 'proto', 'directions', 'errors', 'first_orders', 'initializers',
+    py_modules=['constraints', 'diaries', 'proto', 'symbolic', 'directions', 'errors', 'first_orders', 'initializers',
                 'integer_programs', 'meta_optimizers', 'objectives', 'opti_math', 'silo', 'steplengths',
                 'stoppers'],
     description='Optimization tools',

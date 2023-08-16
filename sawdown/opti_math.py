@@ -69,10 +69,8 @@ class OptiMath(SawMath):
     """
     Maths and configurations needed for optimization.
     """
-    def __init__(self, epsilon=1e-24, initialization_max_iters=500, initialization_decay_steps=50):
+    def __init__(self, epsilon=1e-24):
         SawMath.__init__(self, epsilon)
-        self.initialization_max_iters = initialization_max_iters
-        self.initialization_decay_steps = initialization_decay_steps
 
     @property
     def epsilon(self):
@@ -86,63 +84,30 @@ class OptiMath(SawMath):
         self._epsilon = value
         self._sqrt_epsilon = np.sqrt(self._epsilon)
 
-    def config(self, **kwargs):
-        names = {'epsilon', 'initialization_max_iters', 'initialization_decay_steps'}
-        for k, v in kwargs.items():
-            if k in names:
-                setattr(self, k, v)
-            else:
-                raise ValueError('Unknown math config: {}'.format(k))
-
-    def optimize(self, initializer, satisfier, director, stepper, diary):
+    def optimize(self, initializer, satisfier, director, stepper, max_iters, diary):
         x_k = initializer.copy()
-        if satisfier(x_k):
+        if satisfier(x_k, opti_math=self):
             diary.set_solution(x=x_k.copy(), objective=np.nan, termination=diaries.Termination.SATISFIED)
             return x_k
 
         termination = diaries.Termination.CONTINUE
         for k in diary.as_long_as(lambda: termination == diaries.Termination.CONTINUE):
-            d_k = director(x_k, diary)
-            delta = stepper(k, x_k, d_k, diary)
+            d_k = director(x_k, self, diary)
+            delta = stepper(k, x_k, d_k, self, diary)
             diary.set_items(x_k=x_k.copy(), delta=delta, d_k=d_k.copy())
 
             x_k += delta * d_k
 
-            if satisfier(x_k):
+            if satisfier(x_k, self):
                 termination = diaries.Termination.SATISFIED
             elif self.true_leq(np.max(np.abs(delta * d_k) / np.maximum(np.abs(x_k), 1.)),
                                np.power(self._epsilon, 2. / 3)):
                 termination = diaries.Termination.INFINITESIMAL_STEP
-            elif k >= self.initialization_max_iters:
+            elif k >= max_iters:
                 termination = diaries.Termination.MAX_ITERATION
 
         diary.set_solution(x=x_k.copy(), objective=np.nan, termination=termination)
-        if not satisfier(x_k):
+        if not satisfier(x_k, self):
             raise errors.InitializationError('Unsatisfied initialization after {} iterations'.format(
                 diary.solution.iteration))
         return x_k
-
-
-class OptiMathMixIn(object):
-
-    def __init__(self):
-        self._opti_math = OptiMath()
-
-    def config(self, **kwargs):
-        self._opti_math.config(**kwargs)
-        return self
-
-    def epsilon(self, epsilon=1e-24):
-        """
-        Machine precision, used mainly in stop conditions and initialization.
-
-        :param epsilon:
-        :return:
-        """
-        return self.config(epsilon=epsilon)
-
-    def initialization_max_iters(self, max_iters=500):
-        return self.config(initialization_max_iters=max_iters)
-
-    def initialization_decay_steps(self, decay_steps=20):
-        return self.config(initialization_decay_steps=decay_steps)

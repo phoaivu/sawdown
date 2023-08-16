@@ -12,43 +12,44 @@ class ConstraintsBase(object):
     def merge(self, other):
         raise NotImplementedError()
 
-    def satisfied(self, x):
+    def satisfied(self, x, opti_math):
         raise NotImplementedError()
 
     def is_empty(self):
         return False
 
-    def setup(self, objective, opti_math, **kwargs):
-        pass
-
-    def initialize(self, initializer, diary):
+    def initialize(self, initializer, config, opti_math, diary):
         """
 
         :param initializer:
+        :param config:
+        :param opti_math:
         :param diary:
         :return: initializer
         :rtype: common.Solution
         """
         raise NotImplementedError()
 
-    def direction(self, x_k, d_k, diary):
+    def direction(self, x_k, d_k, opti_math, diary):
         """
 
         :param x_k:
         :param d_k:
+        :param opti_math:
         :param diary:
         :return: modified direction, usually projected onto constraints.
         :rtype: np.array
         """
         raise NotImplementedError()
 
-    def steplength(self, k, x_k, d_k, max_steplength, diary):
+    def steplength(self, k, x_k, d_k, max_steplength, opti_math, diary):
         """
 
         :param k:
         :param x_k:
         :param d_k:
         :param max_steplength:
+        :param opti_math:
         :param diary:
         :return: modified steplength
         :rtype: float
@@ -68,19 +69,19 @@ class EmptyConstraints(ConstraintsBase):
         # For the sake of completeness.
         return other.clone()
 
-    def satisfied(self, x):
+    def satisfied(self, x, opti_math):
         return True
 
     def is_empty(self):
         return True
 
-    def initialize(self, initializer, diary):
+    def initialize(self, initializer, config, opti_math, diary):
         return initializer
 
-    def direction(self, x_k, d_k, diary):
+    def direction(self, x_k, d_k, opti_math, diary):
         return d_k
 
-    def steplength(self, k, x_k, d_k, max_steplength, diary):
+    def steplength(self, k, x_k, d_k, max_steplength, opti_math, diary):
         return max_steplength
 
 
@@ -90,7 +91,6 @@ class LinearConstraints(ConstraintsBase):
             raise ValueError('Invalid shapes of constraints: expect `a` is 2-dimensional and `b` is 1-dimensional')
         self._a = a
         self._b = b
-        self._opti_math = None
 
         # compute constraint projection matrix
         # I - (1/a^Ta)aa^T
@@ -98,9 +98,6 @@ class LinearConstraints(ConstraintsBase):
         denominator = np.sum(np.square(self._a), axis=1)
         self._projectors = (np.identity(self._projectors.shape[1])[None, :, :]
                             - (self._projectors / denominator[:, None, None]))
-
-    def setup(self, objective, opti_math, **kwargs):
-        self._opti_math = opti_math
 
     def var_dim(self):
         return self._a.shape[1]
@@ -114,18 +111,14 @@ class LinearConstraints(ConstraintsBase):
         return residual if residual.shape[-1] > 1 else residual.squeeze(axis=-1)
 
     def clone(self):
-        c = self.__class__(self._a.copy(), self._b.copy())
-        c.setup(None, self._opti_math)
-        return c
+        return self.__class__(self._a.copy(), self._b.copy())
 
     def merge(self, other):
         if self.var_dim() != other.var_dim():
             raise ValueError('Incompatible variable dimension: one is {}, one is {}'.format(
                 self.var_dim(), other.var_dim()))
 
-        c = self.__class__(np.vstack((self._a, other._a)), np.concatenate((self._b, other._b)))
-        c.setup(None, self._opti_math)
-        return c
+        return self.__class__(np.vstack((self._a, other._a)), np.concatenate((self._b, other._b)))
 
 
 class BoundedVariable(object):

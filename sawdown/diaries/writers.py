@@ -1,82 +1,96 @@
+import collections
 import os.path
 import pickle
 import sys
 
-from sawdown.diaries import base, readers
+
+def from_proto(proto_diaries):
+    _writers = []
+    for diary in proto_diaries:
+        field_name = diary.WhichOneof('diary')
+        if field_name == 'memory_diary':
+            _writers.append(MemoryWriter())
+        elif field_name == 'stream_diary':
+            _writers.append(StreamWriter(diary.stream_diary.stream))
+        elif field_name == 'file_diary':
+            _writers.append(FileWriter(diary.file_diary.path, diary.file_diary.job_name))
+        elif field_name is not None:
+            raise ValueError('Unsupported diary writer: {}'.format(field_name))
+    return _writers
 
 
-class StreamWriter(base.DiaryBase):
-    """
-    Store data and optionally write it to a stream.
-    """
+class DiaryWriter(object):
+    def write(self, diary_id='', parent_id='', entries=None):
+        raise NotImplementedError()
 
-    def __init__(self, diary_id='', stream=''):
-        base.DiaryBase.__init__(self, diary_id)
-        self._stream = stream
-        if stream not in {'stdout', 'stderr', ''}:
-            raise ValueError('`stream` either empty, `stdout` or `stderr`')
-        self._output = getattr(sys, stream, None)
-        self._first_entry = True
+    def close(self):
+        pass
 
-    def _dup(self, new_diary_id=''):
-        return StreamWriter(new_diary_id, self._stream)
 
-    def _write(self, entries=None):
-        if self._output is None:
-            return
-        if self._first_entry:
-            self._output.write('Diary #{}, Parent={}\n'.format(self._diary_id, self._parent_id))
-            self._first_entry = False
-        prefix = '' if self._parent_id is None else '    '
+class MemoryWriter(DiaryWriter):
+    def __init__(self):
+        self._iteration_data = collections.OrderedDict()
+
+    def write(self, diary_id='', parent_id='', entries=None):
+        diary_data = self._iteration_data.get(diary_id, None)
+        if diary_data is None:
+            diary_data = (parent_id, [])
+            self._iteration_data[diary_id] = diary_data
+        diary_data[1].append(entries)
+
+    def get_iteration_data(self, diary_id=''):
+        if diary_id in {'', None}:
+            return self._iteration_data
+        return self._iteration_data.get(diary_id, None)
+
+
+class StreamWriter(DiaryWriter):
+
+    def __init__(self, stream='stdout'):
+        self._output_stream = sys.stdout if stream == 'stdout' else sys.stderr
+        self._encountered = set()
+
+    def write(self, diary_id='', parent_id='', entries=None):
+        if diary_id not in self._encountered:
+            self._encountered.add(diary_id)
+            self._output_stream.write('Diary {}, parent={}\n'.format(diary_id, parent_id))
+        prefix = '' if parent_id in {'', None} else '    '
         for k, v in entries.items():
-            self._output.write('{}{}: {}\n'.format(prefix, k, v))
-        self._output.write('-------------------\n')
-
-    def _get_reader_config(self):
-        return {}
+            self._output_stream.write('{}{}: {}\n'.format(prefix, k, v))
+        self._output_stream.write('{}---------------\n'.format(prefix))
 
 
-class FileWriter(base.DiaryBase):
-    def __init__(self, diary_id='', path='.', job_name='optimization'):
-        base.DiaryBase.__init__(self, diary_id)
-        self._path = path
-        self._job_name = job_name
-        self._output_dir = ''
+class FileWriter(MemoryWriter):
 
-    def _dup(self, new_diary_id=''):
-        return FileWriter(new_diary_id, self._path, self._job_name)
+    def __init__(self, path='.', job_name=''):
+        MemoryWriter.__init__(self)
+        self._path = os.path.abspath(path)
+        i = 0
+        refined_job_name = job_name
+        while os.path.exists(os.path.join(self._path, refined_job_name)):
+            i += 1
+            refined_job_name = '{}_{}'.format(job_name, i)
+        self._job_name = refined_job_name
+        self._folder_path = os.path.join(self._path, self._job_name)
+        self._files = {}
 
-    def _initialize(self):
-        self._path = os.path.abspath(self._path)
-        if not os.path.exists(self._path):
-            raise ValueError('Path does not exists: {}'.format(self._path))
-        if self.is_root():
-            i = 0
-            refined_job_name = self._job_name
-            while os.path.exists(os.path.join(self._path, refined_job_name)):
-                refined_job_name = '{}_{}'.format(self._job_name, i)
-                i += 1
-            self._output_dir = os.path.join(self._path, refined_job_name)
-            os.makedirs(self._output_dir)
-            self._job_name = refined_job_name
-        else:
-            self._output_dir = os.path.join(self._path, self._job_name)
-            assert os.path.exists(self._output_dir)
-        with open(os.path.join(self._output_dir, '{}.log'.format(self._diary_id)), 'w') as f:
-            f.write('Diary #{}, parent = {}\n'.format(self._diary_id, self._parent_id))
+    def write(self, diary_id='', parent_id='', entries=None):
+        MemoryWriter.write(self, diary_id, parent_id, entries)
+        file_output = self._files.get(diary_id, None)
+        if file_output is None:
+            file_output = open(os.path.join(self._folder_path, '{}.log'.format(diary_id)), 'w')
+            file_output.write('Diary {}, parent={}\n'.format(diary_id, parent_id))
+            self._files[diary_id] = file_output
+        for k, v in entries.items():
+            file_output.write('{}: {}\n'.format(k, v))
+        file_output.write('---------------\n')
 
-    def _close(self):
-        if self.is_root():
-            with open(os.path.join(self._output_dir, '{}.pkl'.format(self._job_name)), 'wb') as f:
-                pickle.dump(self.descendant_iteration_data(), f)
+    def close(self):
+        MemoryWriter.close(self)
+        with open(os.path.join(self._folder_path, '{}.pkl'.format(self._job_name)), 'wb') as f:
+            pickle.dump(self._iteration_data, f)
+        [f.close() for f in self._files]
+        self._files.clear()
 
-    def _write(self, entries=None):
-        with open(os.path.join(self._output_dir, '{}.log'.format(self._diary_id)), 'a') as f:
-            for k, v in entries.items():
-                f.write('{}: {}\n'.format(k, v))
-            f.write('----------------\n')
-
-    def _get_reader_config(self):
-        return dict(reader_module=readers.MemoryReader.__module__,
-                    reader_class=readers.MemoryReader.__name__,
-                    reader_args=(None, os.path.join(self._output_dir, '{}.pkl'.format(self._job_name))))
+    def get_reader_config(self, diary_id=''):
+        return dict(pickle_file=os.path.join(self._folder_path, '{}.pkl'.format(self._job_name)))

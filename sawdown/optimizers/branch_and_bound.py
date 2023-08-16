@@ -4,30 +4,49 @@ import queue
 
 import numpy as np
 
-import sawdown.diaries.async_diary
 from sawdown import errors, diaries
+from sawdown.optimizers import first_orders
+from sawdown.proto import sawdown_pb2
+
+
+def _solve(relaxed_problem, sub_problem, diary_message, diary_response, diary_response_semaphore):
+    problem = sawdown_pb2.Problem()
+    problem.CopyFrom(relaxed_problem)
+
+    problem.fixed_initializer.CopyFrom(sub_problem.initializer)
+    for var in sub_problem.fixed_value_constraints:
+        problem.fixed_value_constraints.append(var)
+    for var in sub_problem.bound_constraints:
+        problem.bound_constraints.append(var)
+
+    try:
+        optimizer = first_orders.AsyncFirstOrderOptimizer(
+            problem, sub_problem.diary_id, diary_message, diary_response, diary_response_semaphore)
+        solution = optimizer.optimize()
+    except RuntimeError as ex:
+        solution = diaries.Solution(x=None, iteration=-1, objective=np.nan,
+                                    termination=diaries.Termination.FAILED, exception=str(ex))
+    return solution
 
 
 class Worker(multiprocessing.Process):
 
-    def __init__(self, problems, solutions, diary_messages, diary_response):
+    def __init__(self, relaxed_problem, problems, solutions, diary_messages, diary_response, response_semaphore):
         multiprocessing.Process.__init__(self, name=self.__class__.__name__)
+        self._relaxed_problem = relaxed_problem
         self._problems = problems
         self._solutions = solutions
         self._diary_message = diary_messages
         self._diary_response = diary_response
+        self._diary_response_semaphore = response_semaphore
 
     def run(self):
-        problem, optimizer = self._problems.get()
+        problem = self._problems.get()
         while problem is not None:
-            try:
-                optimizer._diary.set_queues(self._diary_message, self._diary_response)
-                solution = optimizer.optimize()
-            except RuntimeError as ex:
-                solution = diaries.Solution(x=None, iteration=-1, objective=np.nan,
-                                            termination=diaries.Termination.FAILED, exception=str(ex))
+            solution = _solve(self._relaxed_problem, problem,
+                              self._diary_message, self._diary_response, self._diary_response_semaphore)
             self._solutions.put((problem, solution))
-            problem, optimizer = self._problems.get()
+            problem = self._problems.get()
 
 
 class BranchAndBounder(diaries.AsyncDiaryMixIn):
@@ -35,8 +54,9 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
     Breadth-first multiprocess B&B
     """
 
-    def __init__(self):
-        diaries.AsyncDiaryMixIn.__init__(self)
+    def __init__(self, proto_problem):
+        diaries.AsyncDiaryMixIn.__init__(self, proto_problem)
+        self._proto_problem = proto_problem
         self._n_processes = os.cpu_count()
 
     def parallelize(self, n_processes=os.cpu_count()):
@@ -51,15 +71,7 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
     def _accept(self, solution, diary):
         raise NotImplementedError()
 
-    def _branch(self, problem, solution, diary):
-        raise NotImplementedError()
-
-    def _sub_optimizer(self, problem, diary):
-        """
-        Returns an optimizer created for the given problem.
-        :param problem:
-        :return:
-        """
+    def _branch(self, sub_problem, sub_solution, diary):
         raise NotImplementedError()
 
     def _optimize(self, diary):
@@ -74,6 +86,11 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
                                reason=ex.reason)
             return diary.solution
 
+        relaxed_problem = sawdown_pb2.Problem()
+        relaxed_problem.CopyFrom(self._proto_problem)
+        for field in ['diaries', 'integer_constraints', 'binary_constraints']:
+            relaxed_problem.ClearField(field)
+
         if self._n_processes == 0:
             problems = queue.Queue()
             solutions = queue.Queue()
@@ -83,27 +100,18 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
         n_unsolved_problems = 0
 
         for problem in initial_problems:
-            assert isinstance(problem.sub_diary, sawdown.diaries.async_diary.AsyncDiary) \
-                   and problem.sub_diary._response_queue is None \
-                    and problem.sub_diary._message_queue is None
-            problems.put((problem, self._sub_optimizer(problem, diary)))
+            problems.put(problem)
         n_unsolved_problems = len(initial_problems)
 
-        workers = [Worker(problems, solutions,
-                          self._diary_message, self._diary_response) for _ in range(self._n_processes)]
+        workers = [Worker(relaxed_problem, problems, solutions, self._diary_message, self._diary_response,
+                          self._diary_response_semaphore) for _ in range(self._n_processes)]
         [p.start() for p in workers]
 
         for _ in diary.as_long_as(lambda: n_unsolved_problems > 0):
             if self._n_processes == 0:
-                problem, optimizer = problems.get()
-                try:
-                    optimizer._diary.set_queues(self._diary_message, self._diary_response)
-                    solution = optimizer.optimize()
-                except RuntimeError as ex:
-                    solution = diaries.Solution(x=None, iteration=-1, objective=np.nan,
-                                                termination=diaries.Termination.FAILED,
-                                                exception=str(ex))
-                    solution.update(exception=str(ex))
+                problem = problems.get()
+                solution = _solve(relaxed_problem, problem,
+                                  self._diary_message, self._diary_response, self._diary_response_semaphore)
                 solutions.put((problem, solution))
 
             sub_problem, sub_solution = solutions.get()
@@ -122,18 +130,8 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
                     diary.set_items(msg_sub='Better optima found. Updated best solution')
                 else:
                     sub_problems = self._branch(sub_problem, sub_solution, diary)
+                    [problems.put(p) for p in sub_problems]
                     n_unsolved_problems += len(sub_problems)
-                    # [problems.put((p, self._sub_optimizer(p, diary))) for p in sub_problems]
-                    for p in sub_problems:
-                        optimizer = self._sub_optimizer(p, diary)
-                        assert isinstance(p.sub_diary, sawdown.diaries.async_diary.AsyncDiary) \
-                               and p.sub_diary._response_queue is None \
-                               and p.sub_diary._message_queue is None
-                        assert isinstance(optimizer._diary, sawdown.diaries.async_diary.AsyncDiary) \
-                               and optimizer._diary._response_queue is None \
-                               and optimizer._diary._message_queue is None
-                        problems.put((p, optimizer))
-
                     diary.set_items(msg_sub='Promising optima found. '
                                             'Branch into {} sub-problems'.format(len(sub_problems)))
             else:
@@ -142,7 +140,7 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
 
             if n_unsolved_problems == 0:
                 diary.set_solution(x=x_opt, objective=best_objective, termination=diaries.Termination.MAX_ITERATION)
-        [problems.put((None, None)) for _ in workers]
+        [problems.put(None) for _ in workers]
         [w.join() for w in workers]
         [w.close() for w in workers]
         workers.clear()

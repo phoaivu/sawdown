@@ -1,24 +1,6 @@
 import numpy as np
 
 
-class ObjectiveMixIn(object):
-    def __init__(self):
-        self._objective = None
-
-    def set_objective(self, objective):
-        """
-        Replace the objective by the given one.
-        :type objective: ObjectiveBase
-        :return: self
-        """
-        self._objective = objective
-        return self
-
-    def objective(self, objective_func, deriv_func):
-        self._objective = FirstOrderObjective(objective_func=objective_func, deriv_func=deriv_func)
-        return self
-
-
 class ObjectiveBase(object):
 
     def clone(self):
