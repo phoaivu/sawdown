@@ -96,9 +96,10 @@ class OptimizerBase(constraints.ConstraintsMixIn):
                 elif proto_config.binary_mapping_mode != sawdown_pb2.BINARY_MAPPING_UNSPECIFIED:
                     raise ValueError('Unsupported binary mapping mode: {}'.format(
                         repr(proto_config.binary_mapping_mode)))
-            for field_name in ['initialization_max_iters', 'initialization_decay_steps']:
+            for field_name in ['initialization_max_iters', 'initialization_decay_steps', 'parallelization']:
                 if proto_config.HasField(field_name):
                     setattr(self._config, field_name, getattr(proto_config, field_name))
+        self._opti_math.check_precision()
 
         # Additional checks, for ill-informed users.
         if (len(set(v.var_index for v in proto_problem.fixed_value_constraints))

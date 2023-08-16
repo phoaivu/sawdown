@@ -14,7 +14,6 @@ class MipOptimizer(base.OptimizerBase, constraints.IntegerConstraintsMixIn, bran
         base.OptimizerBase.__init__(self, proto_problem)
         constraints.IntegerConstraintsMixIn.__init__(self, proto_problem)
         branch_and_bound.BranchAndBounder.__init__(self, proto_problem)
-        self._var_dim = -1
 
     def _initial_problems(self, diary):
         if self._objective is None:

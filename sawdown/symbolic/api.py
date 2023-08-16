@@ -171,5 +171,10 @@ class MipOptimizer(Declaration):
             return self.config(binary_mapping_mode=sawdown_pb2.BINARY_MAPPING_ZERO_ONE)
         return self.config(binary_mapping_mode=sawdown_pb2.BINARY_MAPPING_ONES)
 
+    def parallelize(self, n_process=os.cpu_count()):
+        if n_process < 0:
+            raise ValueError('Cannot solve your problem with negative worker')
+        return self.config(parallelization=n_process)
+
     def optimize(self):
         return optimizers.MipOptimizer(self._problem).optimize()

@@ -84,6 +84,19 @@ class OptiMath(SawMath):
         self._epsilon = value
         self._sqrt_epsilon = np.sqrt(self._epsilon)
 
+    def check_precision(self):
+        numpy_precision = 0
+        # Do not start less than 10^-24 since we don't want self.epsilon be too small.
+        for i in np.arange(-24, 0, 1):
+            v = np.add(1., np.power(10., i))
+            if self.true_negative(1. - v):
+                numpy_precision = i
+                break
+        smallest_possible_epsilon = ((numpy_precision / 2) + 1)
+        if self._epsilon < np.power(10., smallest_possible_epsilon):
+            raise ValueError('Numpy precision is at most 1.E{}. Try setting epsilon greater than 1.E{}'.format(
+                numpy_precision, smallest_possible_epsilon))
+
     def optimize(self, initializer, satisfier, director, stepper, max_iters, diary):
         """
         Only used for initializing into a feasible region defined by various type of constraints.

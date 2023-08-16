@@ -57,13 +57,9 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
     def __init__(self, proto_problem):
         diaries.AsyncDiaryMixIn.__init__(self, proto_problem)
         self._proto_problem = proto_problem
-        self._n_processes = os.cpu_count()
 
-    def parallelize(self, n_processes=os.cpu_count()):
-        if n_processes < 0:
-            raise ValueError('Cannot solve your problem with negative parallelization')
-        self._n_processes = n_processes
-        return self
+    def _n_processes(self):
+        return self._proto_problem.config.parallelization
 
     def _initial_problems(self, diary):
         raise NotImplementedError()
@@ -91,7 +87,7 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
         for field in ['diaries', 'integer_constraints', 'binary_constraints']:
             relaxed_problem.ClearField(field)
 
-        if self._n_processes == 0:
+        if self._n_processes() == 0:
             problems = queue.Queue()
             solutions = queue.Queue()
         else:
@@ -104,7 +100,7 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
         n_unsolved_problems = len(initial_problems)
 
         workers = [Worker(relaxed_problem, problems, solutions, self._diary_message, self._diary_response,
-                          self._diary_response_semaphore) for _ in range(self._n_processes)]
+                          self._diary_response_semaphore) for _ in range(self._n_processes())]
         [p.start() for p in workers]
 
         for _ in diary.as_long_as(lambda: n_unsolved_problems > 0):

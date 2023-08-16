@@ -112,6 +112,9 @@ message Configuration {
     BinaryMappingMode binary_mapping_mode = 2;
     uint64 initialization_max_iters = 3;
     uint64 initialization_decay_steps = 4;
+
+    // for multi-process solvers.
+    uint64 parallelization = 5;
 }
 
 // Diary
