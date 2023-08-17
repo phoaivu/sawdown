@@ -1,14 +1,11 @@
 import numpy as np
 
 
-# TODO: decayed steplength is Computer Scientist's trick. Maybe replace it by Wolfe conditions.
-
-
 class SteplengthBase(object):
-    def setup(self, objective, opti_math, **kwargs):
+    def setup(self, objective, **kwargs):
         pass
 
-    def steplength(self, k, x_k, d_k, max_steplength):
+    def steplength(self, k, x_k, d_k, max_steplength, opti_math):
         raise NotImplementedError()
 
     def clone(self):
@@ -21,7 +18,7 @@ class DecaySteplength(SteplengthBase):
         SteplengthBase.__init__(self)
         self._decay_steps = decay_steps
 
-    def steplength(self, k, x_k, d_k, max_steplength):
+    def steplength(self, k, x_k, d_k, max_steplength, opti_math):
         return max_steplength * np.exp(-float(k) / self._decay_steps)
 
     def clone(self):
@@ -33,16 +30,17 @@ class QuadraticInterpolationSteplength(SteplengthBase):
         SteplengthBase.__init__(self)
         self._objective = None
 
-    def setup(self, objective, opti_math, **kwargs):
+    def setup(self, objective, **kwargs):
         self._objective = objective
 
-    def steplength(self, k, x_k, d_k, max_steplength):
+    def steplength(self, k, x_k, d_k, max_steplength, opti_math):
         """
 
         :param k:
         :param x_k:
         :param d_k:
         :param max_steplength:
+        :param opti_math:
         :return:
         """
         interpolated_step = 0.
@@ -60,16 +58,14 @@ class CircleDetectionSteplength(SteplengthBase):
     """
     If detect x_k loops over a list of positions, then halves the step-length.
     """
-    def __init__(self, circle_length=2):
+    def __init__(self, circle_length=2, decay_rate=0.5):
         SteplengthBase.__init__(self)
         self._circle_length = circle_length
         self._position_history = None
-        self._opti_math = None
+        self._decay_rate = decay_rate
+        self._multiplier = 1.
 
-    def setup(self, objective, opti_math, **kwargs):
-        self._opti_math = opti_math
-
-    def steplength(self, k, x_k, d_k, max_steplength):
+    def steplength(self, k, x_k, d_k, max_steplength, opti_math):
         if self._position_history is None:
             self._position_history = x_k[:, None].copy()
         elif self._position_history.shape[1] < (self._circle_length * 2):
@@ -78,10 +74,10 @@ class CircleDetectionSteplength(SteplengthBase):
             self._position_history[:, :-1] = self._position_history[:, 1:]
             self._position_history[:, -1:] = x_k[:, None]
 
-            if np.all(self._opti_math.equals(self._position_history[:, :self._circle_length],
-                                             self._position_history[:, self._circle_length:])):
-                max_steplength /= 2.
-        return max_steplength
+            if np.all(opti_math.equals(self._position_history[:, :self._circle_length],
+                                       self._position_history[:, self._circle_length:])):
+                self._multiplier *= self._decay_rate
+        return self._multiplier * max_steplength
 
     def clone(self):
         return CircleDetectionSteplength(self._circle_length)

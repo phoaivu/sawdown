@@ -1,7 +1,7 @@
 import multiprocessing
 
 from sawdown.proto import sawdown_pb2
-from sawdown.diaries import diary_async
+from sawdown.diaries import diary_async, diary_sync
 
 
 class AsyncDiaryMixIn(object):
@@ -19,7 +19,7 @@ class AsyncDiaryMixIn(object):
 
     def _start_diary_worker(self):
         self._diary_message, self._diary_response = (multiprocessing.Queue(), multiprocessing.Queue())
-        self._diary_response_semaphore = multiprocessing.Semaphore()
+        self._diary_response_semaphore = multiprocessing.RLock()
         self._diary_worker = diary_async.DiaryWorker(self._diary_message, self._diary_response,
                                                      self._diary_writer_config)
         self._diary_worker.start()
@@ -32,3 +32,11 @@ class AsyncDiaryMixIn(object):
         self._diary = None
         self._diary_message, self._diary_response = (None, None)
         self._diary_response_semaphore = None
+
+
+def test_diary(stream='stdout'):
+    """
+    Only useful for tests.
+    """
+    return diary_sync.SyncDiary(diary_id='',
+                                proto_diaries=[sawdown_pb2.Diary(stream_diary=sawdown_pb2.StreamDiary(stream=stream))])

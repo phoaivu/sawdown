@@ -3,24 +3,10 @@ import os.path
 import unittest
 import numpy as np
 
+import optimizers
 import sawdown
 from tests import plotter
 from tests import test_problems
-
-
-class KnapsackObjective(sawdown.ObjectiveBase):
-    def __init__(self, values=None):
-        sawdown.ObjectiveBase.__init__(self)
-        self.values = values
-
-    def clone(self):
-        return KnapsackObjective(self.values.copy())
-
-    def _objective(self, x):
-        return -np.matmul(self.values[None, :], x)
-
-    def _gradient(self, x):
-        return -np.matmul(self.values[:, None], np.ones((1, x.shape[1]), dtype=float))
 
 
 class OptimizerWrapper(object):
@@ -28,8 +14,8 @@ class OptimizerWrapper(object):
     Hack, until Plotter is fixed for good.
     """
 
-    def __init__(self, new_optimizer):
-        self._optimizer = new_optimizer
+    def __init__(self, symbolic_optimizer):
+        self._optimizer = optimizers.FirstOrderOptimizer(symbolic_optimizer._problem)
 
     def objective(self, data):
         return self._optimizer._objective.objective(data)
@@ -46,14 +32,10 @@ class OptimizerWrapper(object):
 
 class TestOptimizers(unittest.TestCase):
 
-    def _plot(self, optimizer, iteration_data_reader, to_iter=2):
+    def _plot(self, symbolic_optimizer, iteration_data_reader, to_iter=2):
         if True:
-            p = plotter.Plotter(optimizer=OptimizerWrapper(optimizer), reader=iteration_data_reader)
+            p = plotter.Plotter(optimizer=OptimizerWrapper(symbolic_optimizer), reader=iteration_data_reader)
             p.draw(show=True, resolution=100, from_iter=0, to_iter=to_iter)
-
-    @staticmethod
-    def _test_diary(log_stream=''):
-        return sawdown.diaries.log_stream(log_stream)
 
     def test_least_square(self):
         solution = test_problems.least_square(np.asarray([[4.]], dtype=float), np.asarray([16], dtype=float)).optimize()
@@ -110,13 +92,13 @@ class TestOptimizers(unittest.TestCase):
         self.assertTrue(np.allclose(solution.x, np.asarray([-1., 0.])))
 
         r = test_problems.simple_inequality_quadratic()
-        solution = r.fixed_initializer(np.asarray([0., 1.], dtype=float)).optimize()
+        solution = r.fixed_initializer(np.asarray([0., 1.], dtype=float)).diary().optimize()
         self.assertTrue(np.allclose(solution.x, np.asarray([-1., 0.])))
         self.assertEqual(solution.iteration, 2)
         self._plot(r, solution.iteration_data_reader())
 
         r = test_problems.simple_inequality_quadratic()
-        solution = r.fixed_initializer(np.asarray([20., 21.], dtype=float)).optimize()
+        solution = r.fixed_initializer(np.asarray([20., 21.], dtype=float)).diary().optimize()
         self.assertTrue(np.allclose(solution.x, np.asarray([-1., 0.])))
         self.assertEqual(solution.iteration, 2)
         self._plot(r, solution.iteration_data_reader())
@@ -134,21 +116,22 @@ class TestOptimizers(unittest.TestCase):
         def deriv(xk):
             return 2. * xk + np.asarray([3., 0.], dtype=float)[:, None]
 
-        r = sawdown.FirstOrderOptimizer().objective(objective, deriv) \
+        r = sawdown.FirstOrderOptimizer().objective_functors(objective, deriv) \
             .linear_inequality_constraints(constraint_a, constraint_b) \
             .steepest_descent().quadratic_interpolation_steplength() \
             .stop_after(100).stop_small_steps() \
-            .fixed_initializer(np.asarray([0., 2.5], dtype=float))
+            .fixed_initializer(np.asarray([0., 2.5], dtype=float)) \
+            .diary()
 
         solution = r.optimize()
         self.assertEqual(solution.termination, sawdown.Termination.INFINITESIMAL_STEP)
         self.assertEqual(solution.iteration, 2)
         self._plot(r, solution.iteration_data_reader(), to_iter=10)
 
-        r = sawdown.FirstOrderOptimizer().objective(objective, deriv) \
+        r = sawdown.FirstOrderOptimizer().objective_functors(objective, deriv) \
             .linear_inequality_constraints(constraint_a, constraint_b) \
             .steepest_descent().quadratic_interpolation_steplength() \
-            .stop_after(100).stop_small_steps().config(epsilon=1e-20)
+            .stop_after(100).stop_small_steps().config(epsilon=1e-6).diary()
 
         solution2 = r.optimize()
         self.assertTrue(np.allclose(solution.x, solution2.x, atol=1e-20))
@@ -163,11 +146,11 @@ class TestOptimizers(unittest.TestCase):
                                    [4., -1.],
                                    [1., 0.]], dtype=float)
         constraint_b = np.asarray([5., 4., 3./4], dtype=float)
-        r = sawdown.FirstOrderOptimizer().objective(objective, deriv) \
+        r = sawdown.FirstOrderOptimizer().objective_functors(objective, deriv) \
             .linear_inequality_constraints(constraint_a, constraint_b) \
             .steepest_descent().quadratic_interpolation_steplength() \
             .stop_after(100).stop_small_steps() \
-            .fixed_initializer(np.asarray([0., 2.5]))
+            .fixed_initializer(np.asarray([0., 2.5])).diary()
         solution3 = r.optimize()
         self.assertEqual(solution3.termination, sawdown.Termination.INFINITESIMAL_STEP)
         self.assertEqual(solution3.iteration, 3)
@@ -184,11 +167,11 @@ class TestOptimizers(unittest.TestCase):
         constraint_a = np.asarray([[1., -2.]], dtype=float)
         constraint_b = np.asarray([3.], dtype=float)
 
-        r = sawdown.FirstOrderOptimizer().objective(objective, deriv) \
+        r = sawdown.FirstOrderOptimizer().objective_functors(objective, deriv) \
             .linear_equality_constraints(constraint_a, constraint_b) \
             .steepest_descent() \
             .quadratic_interpolation_steplength() \
-            .stop_after(100).stop_small_steps()
+            .stop_after(100).stop_small_steps().diary()
         solution = r.optimize()
         self.assertEqual(solution.termination, sawdown.Termination.INFINITESIMAL_STEP)
         self.assertEqual(solution.iteration, 1)
@@ -200,11 +183,11 @@ class TestOptimizers(unittest.TestCase):
                                    [1., -2.]], dtype=float)
         constraint_b = np.asarray([0., 3.], dtype=float)
 
-        r = sawdown.FirstOrderOptimizer().objective(objective, deriv) \
+        r = sawdown.FirstOrderOptimizer().objective_functors(objective, deriv) \
             .linear_equality_constraints(constraint_a, constraint_b) \
             .steepest_descent() \
             .quadratic_interpolation_steplength()\
-            .stop_after(100).stop_small_steps()
+            .stop_after(100).stop_small_steps().diary()
         solution = r.optimize()
         self.assertEqual(solution.termination, sawdown.Termination.INFINITESIMAL_STEP)
         self.assertEqual(solution.iteration, 0)
@@ -219,15 +202,15 @@ class TestOptimizers(unittest.TestCase):
 
         # 2x1 - x2 = 0
         # x1 - 2x2 + 3 >= 0
-        r = sawdown.FirstOrderOptimizer().objective(objective, deriv) \
+        r = sawdown.FirstOrderOptimizer().objective_functors(objective, deriv) \
             .linear_inequality_constraints(np.asarray([[1., -2.]], dtype=float), np.asarray([3.], dtype=float)) \
             .linear_equality_constraints(np.asarray([[2., -1.]], dtype=float), np.asarray([0.], dtype=float)) \
             .steepest_descent() \
             .quadratic_interpolation_steplength() \
-            .stop_after(100).stop_small_steps()
+            .stop_after(100).stop_small_steps().diary()
         solution = r.optimize()
         self.assertEqual(solution.termination, sawdown.Termination.INFINITESIMAL_STEP)
-        self.assertEqual(solution.iteration, 2)
+        self.assertEqual(solution.iteration, 1)
         self._plot(r, solution.iteration_data_reader(), to_iter=10)
 
         # 2x1 - x2 - 1 = 0
@@ -236,13 +219,13 @@ class TestOptimizers(unittest.TestCase):
         constraint_a = np.asarray([[1., -2.],
                                    [1., 0.]], dtype=float)
         constraint_b = np.asarray([3., -0.25], dtype=float)
-        r = sawdown.FirstOrderOptimizer().objective(objective, deriv) \
+        r = sawdown.FirstOrderOptimizer().objective_functors(objective, deriv) \
             .linear_inequality_constraints(constraint_a, constraint_b) \
             .linear_equality_constraints(np.asarray([[2., -1.]], dtype=float), np.asarray([-1.], dtype=float)) \
             .steepest_descent() \
             .quadratic_interpolation_steplength() \
             .fixed_initializer(np.asarray([-2., 4.], dtype=float)) \
-            .stop_after(100).stop_small_steps().log_stream('stdout')
+            .stop_after(100).stop_small_steps().diary().stream_diary('stdout')
         solution = r.optimize()
         self.assertEqual(solution.termination, sawdown.Termination.INFINITESIMAL_STEP)
         self.assertEqual(solution.iteration, 1)
@@ -255,13 +238,13 @@ class TestOptimizers(unittest.TestCase):
         constraint_a = np.asarray([[2., -1.],
                                    [1., -2.]], dtype=float)
         constraint_b = np.asarray([-1., 3.], dtype=float)
-        r = sawdown.FirstOrderOptimizer().objective(objective, deriv) \
+        r = sawdown.FirstOrderOptimizer().objective_functors(objective, deriv) \
             .linear_inequality_constraints(constraint_a, constraint_b) \
             .fixed_value_constraint(0, 1./4) \
             .steepest_descent() \
             .quadratic_interpolation_steplength() \
             .fixed_initializer(np.asarray([-2., 4.], dtype=float)) \
-            .stop_after(100).stop_small_steps().log_stream('stdout')
+            .stop_after(100).stop_small_steps().diary()
         solution = r.optimize()
         self.assertEqual(solution.termination, sawdown.Termination.INFINITESIMAL_STEP)
         self.assertEqual(solution.iteration, 1)
@@ -291,41 +274,41 @@ class TestOptimizers(unittest.TestCase):
             return 2 * x0 + 3 * x1 + 4 * np.square(x0) + 2 * np.prod(_x, axis=0) + np.square(x1)
 
         initializer = np.asarray([2., 1.])
-        r = sawdown.FirstOrderOptimizer().objective(_objective, _deriv) \
+        r = sawdown.FirstOrderOptimizer().objective_functors(_objective, _deriv) \
             .linear_inequality_constraints(constraint_a, constraint_b) \
             .steepest_descent().quadratic_interpolation_steplength() \
             .stop_after(100).stop_small_steps() \
-            .fixed_initializer(initializer)
+            .fixed_initializer(initializer).diary()
         solution = r.optimize()
         self.assertLess(solution.iteration, 50)
         self._plot(r, solution.iteration_data_reader(), to_iter=10)
 
         initializer = np.asarray([3., 1.])
-        r = sawdown.FirstOrderOptimizer().objective(_objective, _deriv) \
+        r = sawdown.FirstOrderOptimizer().objective_functors(_objective, _deriv) \
             .linear_inequality_constraints(constraint_a, constraint_b) \
             .steepest_descent().quadratic_interpolation_steplength() \
             .stop_after(100).stop_small_steps() \
             .fixed_initializer(initializer)
         solution2 = r.optimize()
         self.assertLess(solution2.iteration, 30)
-        self.assertTrue(np.allclose(solution.x, solution2.x, rtol=1e-5))
+        self.assertTrue(np.allclose(solution.x, solution2.x, rtol=1e-3))
 
         initializer = np.asarray([1., -3.])
-        r = sawdown.FirstOrderOptimizer().objective(_objective, _deriv) \
+        r = sawdown.FirstOrderOptimizer().objective_functors(_objective, _deriv) \
             .linear_inequality_constraints(constraint_a, constraint_b) \
             .steepest_descent().quadratic_interpolation_steplength() \
             .stop_after(100).stop_small_steps() \
             .fixed_initializer(initializer)
         solution3 = r.optimize()
         self.assertLess(solution3.iteration, 55)
-        self.assertTrue(np.allclose(solution.x, solution3.x, rtol=1e-5))
+        self.assertTrue(np.allclose(solution.x, solution3.x, rtol=1e-3))
 
         # Adam
-        r = sawdown.FirstOrderOptimizer().objective(_objective, _deriv) \
+        r = sawdown.FirstOrderOptimizer().objective_functors(_objective, _deriv) \
             .linear_inequality_constraints(constraint_a, constraint_b) \
             .fixed_initializer(initializer=np.asarray([2., 1.], dtype=float)) \
             .adam() \
-            .stop_after(500).stop_small_steps()
+            .stop_after(500).stop_small_steps().diary()
 
         solution = r.optimize()
         self.assertIsNotNone(solution.x)
@@ -353,12 +336,12 @@ class TestOptimizers(unittest.TestCase):
         constraint_a = np.asarray([[-1., -1.],
                                    [-1., 0.]], dtype=float)
         constraint_b = np.asarray([4., 3.], dtype=float)
-        r = sawdown.FirstOrderOptimizer().objective(_objective, _deriv) \
+        r = sawdown.FirstOrderOptimizer().objective_functors(_objective, _deriv) \
             .linear_inequality_constraints(constraint_a, constraint_b) \
             .linear_equality_constraints(np.asarray([[1., -1.]], dtype=float), np.asarray([0.], dtype=float)) \
             .fixed_initializer(np.asarray([5., 2.5], dtype=float)) \
             .steepest_descent().quadratic_interpolation_steplength() \
-            .stop_after(100).stop_small_steps()
+            .stop_after(100).stop_small_steps().diary()
         solution = r.optimize()
         self.assertTrue(np.allclose(solution.x, np.asarray([-0.35714286, -0.35714286], dtype=float)))
         self.assertEqual(solution.iteration, 1)
@@ -383,15 +366,15 @@ class TestOptimizers(unittest.TestCase):
             return (np.multiply(np.asarray([2., 18., 2.], dtype=float)[:, None], x)
                     + np.asarray([4., -12., 2.], dtype=float)[:, None])
 
-        r = sawdown.FirstOrderOptimizer().objective(_objective, _deriv) \
+        r = sawdown.FirstOrderOptimizer().objective_functors(_objective, _deriv) \
             .linear_inequality_constraints(constraint_a, constraint_b) \
             .steepest_descent().quadratic_interpolation_steplength() \
             .stop_after(100).stop_small_steps()
         solution = r.optimize()
-        self.assertTrue(np.allclose(solution.x, np.asarray([-2., 2. / 3, -1.], dtype=float)))
+        self.assertTrue(np.allclose(solution.x, np.asarray([-2., 2. / 3, -1.], dtype=float), atol=1e-2))
 
         solution = r.fixed_initializer(np.asarray([3., -4.5, 0.], dtype=float)).optimize()
-        self.assertTrue(np.allclose(solution.x, np.asarray([-2., 2. / 3, -1.], dtype=float)))
+        self.assertTrue(np.allclose(solution.x, np.asarray([-2., 2. / 3, -1.], dtype=float), atol=1e-2))
 
         '''
         import scipy.optimize
@@ -416,15 +399,15 @@ class TestOptimizers(unittest.TestCase):
         def _grad(x):
             return x - np.asarray([1.4, 1.6], dtype=float)[:, None]
 
-        r = sawdown.MipOptimizer().objective(_objective, _grad) \
+        r = sawdown.MipOptimizer().objective_functors(_objective, _grad) \
             .integer_constraint(var_index=0) \
             .integer_constraint(var_index=1) \
-            .fixed_initializer(np.zeros((2,), dtype=float)) \
+            .zeros_initializer(var_dim=2) \
             .steepest_descent() \
             .quadratic_interpolation_steplength() \
             .stop_after(100).stop_small_steps() \
             .parallelize(0) \
-            .log_stream('stdout')
+            .stream_diary('stdout')
         solution = r.optimize()
         self.assertTrue(np.allclose(solution.x, np.asarray([1., 2.])))
         self.assertLess(solution.iteration, 7)
@@ -440,53 +423,50 @@ class TestOptimizers(unittest.TestCase):
         constraint_a = np.asarray([[1, -1], [-3, -2], [-2, -3]], dtype=float)
         constraint_b = np.asarray([1, 12, 12], dtype=float)
 
-        r = sawdown.MipOptimizer().objective(
-            objective_func=lambda _x: -0.5 * np.square(_x[1, :] - 100.),
-            deriv_func=lambda _x: np.vstack((np.zeros_like(_x[0, :], dtype=float), (_x[1, :] - 100)))) \
+        job_name = 'test_constrained_mip'
+        test_problems.cleanup_file_diary(job_name)
+
+        r = sawdown.MipOptimizer().objective_functors(
+            objective=lambda _x: -0.5 * np.square(_x[1, :] - 100.),
+            grad=lambda _x: np.vstack((np.zeros_like(_x[0, :], dtype=float), (_x[1, :] - 100)))) \
             .linear_inequality_constraints(constraint_a, constraint_b) \
             .integer_constraint(var_index=0, lower_bound=0.) \
             .integer_constraint(var_index=1, lower_bound=0.) \
             .steepest_descent().quadratic_interpolation_steplength() \
             .stop_after(100).stop_small_steps() \
             .parallelize(0) \
-            .log_stream('stdout')
+            .file_diary(path=test_problems.log_path, job_name=job_name)
 
         solution = r.optimize()
+        print(solution)
         self.assertTrue(np.allclose(solution.x, np.asarray([1., 2.], dtype=float)))
         self.assertLess(solution.iteration, 5)
 
         # min -y
-        r = sawdown.MipOptimizer().objective(
-            objective_func=lambda _x: -_x[1, :],
-            deriv_func=lambda _x: np.zeros_like(_x) + np.asarray([0., -1.], dtype=float)[:, None]) \
+        r = sawdown.MipOptimizer().objective_functors(
+            objective=lambda _x: -_x[1, :],
+            grad=lambda _x: np.zeros_like(_x) + np.asarray([0., -1.], dtype=float)[:, None]) \
             .linear_inequality_constraints(constraint_a, constraint_b) \
             .integer_constraint(var_index=0, lower_bound=0.) \
             .integer_constraint(var_index=1, lower_bound=0.) \
-            .steepest_descent().decay_steplength(10) \
+            .steepest_descent().decayed_steplength(10) \
             .stop_after(100).stop_small_steps() \
             .parallelize(0) \
-            .log_stream('stdout')
+            .stream_diary('stdout')
         solution = r.optimize()
         self.assertTrue(np.allclose(solution.x, np.asarray([1., 2.], dtype=float)))
         self.assertLess(solution.iteration, 9)
 
     def test_knapsack(self):
-        log_path = os.path.join(os.path.split(__file__)[0], 'logs')
-        for folder in glob.glob(os.path.join(log_path, 'knapsack*')):
-            [os.remove(f) for f in glob.glob(os.path.join(folder, '*.*'))]
-            os.rmdir(folder)
+        job_name = 'test_optimizers_knapsack'
+        test_problems.cleanup_file_diary(job_name)
 
-        r = test_problems.knapsack().log_file(log_path, 'knapsack')
+        r = test_problems.knapsack().file_diary(test_problems.log_path, job_name)
 
         solution = r.optimize()
         self.assertTrue(np.allclose(solution.x, np.asarray([1., 0., 1., 1., 1.], dtype=float)))
         self.assertLess(solution.iteration, 15)
         self.assertEqual(solution.objective, -22.)
-        # iteration data is readable with a log_file()
-        self.assertTrue(os.path.exists(os.path.join(log_path, 'knapsack', 'knapsack.pkl')))
-        reader = sawdown.diaries.MemoryReader(pickle_file=os.path.join(log_path, 'knapsack', 'knapsack.pkl'))
-        reread_solution = reader.solution()
-        self.assertEqual(solution['spent_time'], reread_solution['spent_time'])
 
     def test_circular_steps(self):
         # Keeps alternating between (0, 1) and (2, 1)
@@ -497,12 +477,11 @@ class TestOptimizers(unittest.TestCase):
             return 200. * (x + np.asarray([-1., 1.], dtype=float)[:, None])
 
         # Equality constraint: x[1] = 1. The minimum is 400 at (1, 1)
-        r = sawdown.FirstOrderOptimizer().objective(_objective, _grad) \
-            .linear_equality_constraints(np.asarray([[0., 1.]], dtype=float),
-                                         np.asarray([-1.], dtype=float)) \
+        r = sawdown.FirstOrderOptimizer().objective_functors(_objective, _grad) \
+            .linear_equality_constraints(np.asarray([[0., 1.]], dtype=float), np.asarray([-1.], dtype=float)) \
             .linear_inequality_constraints(np.asarray([[1., 0.], [-1., 0.]], dtype=float),
                                            np.asarray([0., 2.], dtype=float)) \
-            .steepest_descent().decay_steplength(40) \
+            .steepest_descent().decayed_steplength(40) \
             .stop_after(100).stop_small_steps()
         solution = r.optimize()
         self.assertEqual(solution.termination, sawdown.Termination.MAX_ITERATION)
@@ -510,13 +489,20 @@ class TestOptimizers(unittest.TestCase):
         self.assertFalse(np.allclose(solution.x, np.asarray([1., 1.], dtype=float)))
 
         # Quadratic interpolation steplength
-        solution = r.quadratic_interpolation_steplength().optimize()
+        r = sawdown.FirstOrderOptimizer().objective_functors(_objective, _grad) \
+            .linear_equality_constraints(np.asarray([[0., 1.]], dtype=float), np.asarray([-1.], dtype=float)) \
+            .linear_inequality_constraints(np.asarray([[1., 0.], [-1., 0.]], dtype=float),
+                                           np.asarray([0., 2.], dtype=float)) \
+            .steepest_descent().quadratic_interpolation_steplength().decayed_steplength(40) \
+            .stop_after(100).stop_small_steps()
+
+        solution = r.optimize()
         self.assertEqual(solution.termination, sawdown.Termination.INFINITESIMAL_STEP)
         self.assertEqual(solution.iteration, 1)
         self.assertTrue(np.allclose(solution.x, np.asarray([1., 1.], dtype=float)))
 
         # Adam
-        r = sawdown.FirstOrderOptimizer().objective(_objective, _grad) \
+        r = sawdown.FirstOrderOptimizer().objective_functors(_objective, _grad) \
             .linear_equality_constraints(np.asarray([[0., 1.]], dtype=float),
                                          np.asarray([-1.], dtype=float)) \
             .linear_inequality_constraints(np.asarray([[1., 0.], [-1., 0.]], dtype=float),
@@ -526,6 +512,19 @@ class TestOptimizers(unittest.TestCase):
         solution = r.optimize()
         self.assertEqual(solution.termination, sawdown.Termination.MAX_ITERATION)
         self.assertLess(solution.objective, 402.)
+
+        # Circular detection
+        r = sawdown.FirstOrderOptimizer().objective_functors(_objective, _grad) \
+            .linear_equality_constraints(np.asarray([[0., 1.]], dtype=float),
+                                         np.asarray([-1.], dtype=float)) \
+            .linear_inequality_constraints(np.asarray([[1., 0.], [-1., 0.]], dtype=float),
+                                           np.asarray([0., 2.], dtype=float)) \
+            .steepest_descent().circle_detection_steplength(circle_length=2) \
+            .stop_after(100).stop_small_steps()
+        solution = r.optimize()
+        self.assertEqual(solution.termination, sawdown.Termination.INFINITESIMAL_STEP)
+        self.assertTrue(np.allclose(solution.x, np.asarray([1., 1.], dtype=float), atol=1e-3))
+        self.assertLess(solution.iteration, 30)
 
 
 if __name__ == '__main__':

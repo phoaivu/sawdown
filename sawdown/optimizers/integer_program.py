@@ -29,13 +29,14 @@ class MipOptimizer(base.OptimizerBase, constraints.IntegerConstraintsMixIn, bran
         initial_problem = sawdown_pb2.IntegerSubproblem()
 
         # merge the integer and binary constraints into bound constraints.
-        existing_bounded_vars = set(v.index for v in self._proto_problem.bound_constraints)
+        existing_bounded_vars = set(v.var_index for v in self._proto_problem.bound_constraints)
         for integer_var in self._integer_vars:
             if integer_var.index in existing_bounded_vars:
                 raise ValueError('Integer variable #{} has duplicated bound constraints'.format(integer_var.index))
-            existing_bounded_vars.add(integer_var.index)
-            initial_problem.bound_constraints.append(sawdown_pb2.BoundConstraint(
-                var_index=integer_var.index, lower=integer_var.lower_bound, upper=integer_var.upper_bound))
+            if any(map(np.isfinite, (integer_var.lower_bound, integer_var.upper_bound))):
+                existing_bounded_vars.add(integer_var.index)
+                initial_problem.bound_constraints.append(sawdown_pb2.BoundConstraint(
+                    var_index=integer_var.index, lower=integer_var.lower_bound, upper=integer_var.upper_bound))
 
         binary_var_lower, binary_var_upper = self._config.binary_bounds()
         for binary_var_index in self._binary_vars:
@@ -50,7 +51,7 @@ class MipOptimizer(base.OptimizerBase, constraints.IntegerConstraintsMixIn, bran
             initializer = init.initialize(initializer)
 
         if initializer is not None:
-            initial_problem.initializer = serializer.encode_ndarray(initializer)
+            initial_problem.initializer.CopyFrom(serializer.encode_ndarray(initializer))
         initial_problem.diary_id = diary.new_sub_id()
 
         return [initial_problem]
@@ -58,14 +59,15 @@ class MipOptimizer(base.OptimizerBase, constraints.IntegerConstraintsMixIn, bran
     def _accept(self, solution, diary):
         if len(self._integer_vars) > 0:
             value = solution.x[self._integer_var_indices]
-            assert self._opti_math.in_bounds(value, self._integer_var_lowers, self._integer_var_uppers)
-            if not self._opti_math.equals(value, np.round(value)):
+            assert np.all(self._opti_math.in_bounds(value, self._integer_var_lowers, self._integer_var_uppers))
+            if not np.all(self._opti_math.equals(value, np.round(value))):
                 return False
 
         if len(self._binary_vars) > 0:
             bounds = self._config.binary_bounds()
             value = solution.x[self._binary_vars]
-            if not(self._opti_math.equals(value, bounds[0])) and not(self._opti_math.equals(value, bounds[1])):
+            if not np.all(np.logical_or(self._opti_math.equals(value, bounds[0]),
+                                        self._opti_math.equals(value, bounds[1]))):
                 return False
         return True
 
@@ -85,7 +87,6 @@ class MipOptimizer(base.OptimizerBase, constraints.IntegerConstraintsMixIn, bran
         else:
             split_idx = self._integer_var_indices[split_idx]
 
-        assert split_idx in set(v.var_index for v in sub_problem.bound_constraints)
         assert split_idx not in set(v.var_index for v in sub_problem.fixed_value_constraints)
         template_problem = sawdown_pb2.IntegerSubproblem()
         # copy the existing bound constraints, except split_idx

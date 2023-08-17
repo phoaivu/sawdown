@@ -12,7 +12,9 @@ def _solve(relaxed_problem, sub_problem, diary_message, diary_response, diary_re
     problem = sawdown_pb2.Problem()
     problem.CopyFrom(relaxed_problem)
 
-    problem.fixed_initializer.CopyFrom(sub_problem.initializer)
+    if sub_problem.HasField('initializer'):
+        problem.ClearField('initializers')
+        problem.initializers.append(sawdown_pb2.Initializer(fixed_initializer=sub_problem.initializer))
     for var in sub_problem.fixed_value_constraints:
         problem.fixed_value_constraints.append(var)
     for var in sub_problem.bound_constraints:
@@ -105,7 +107,7 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
         [p.start() for p in workers]
 
         for _ in diary.as_long_as(lambda: n_unsolved_problems > 0):
-            if self._n_processes == 0:
+            if self._n_processes() == 0:
                 problem_proto = problems.get()
                 problem = sawdown_pb2.IntegerSubproblem()
                 problem.MergeFromString(problem_proto)
@@ -121,9 +123,11 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
             if sub_solution.x is None:
                 diary.set_items(sub_problem=sub_problem,
                                 termination=sub_solution.termination,
+                                sub_diary_id=sub_problem.diary_id,
                                 msg_sub='Failed solving sub-problem: {}'.format(sub_solution.get('exception', '')))
             elif sub_solution.objective < best_objective:
                 diary.set_items(x=sub_solution.x.copy(), objective=sub_solution.objective,
+                                sub_diary_id=sub_problem.diary_id,
                                 best_objective=best_objective)
                 if self._accept(sub_solution, diary):
                     best_objective = sub_solution.objective
@@ -137,6 +141,7 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
                                             'Branch into {} sub-problems'.format(len(sub_problems)))
             else:
                 diary.set_items(x=sub_solution.x.copy(), objective=sub_solution.objective,
+                                sub_diary_id=sub_problem.diary_id,
                                 best_objective=best_objective, msg_sub='Mediocre solution. Rejected.')
 
             if n_unsolved_problems == 0:
@@ -155,7 +160,8 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
         :rtype: sawdown.diaries.Solution
         """
         diaries.AsyncDiaryMixIn._start_diary_worker(self)
-        with self._diary:
-            solution = self._optimize(self._diary)
-        diaries.AsyncDiaryMixIn._stop_diary_worker(self)
-        return solution
+        try:
+            with self._diary:
+                return self._optimize(self._diary)
+        finally:
+            diaries.AsyncDiaryMixIn._stop_diary_worker(self)

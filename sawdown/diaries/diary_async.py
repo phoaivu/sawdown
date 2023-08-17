@@ -25,16 +25,21 @@ class DiaryWorker(multiprocessing.Process):
                 if writer is None:
                     self._response_queue.put((msg, None))
                 else:
-                    self._response_queue.put(msg, writer.get_iteration_data(diary_id=msg))
+                    self._response_queue.put((msg, writer.get_iteration_data(diary_id=msg)))
             elif msg_type == common.DiaryWorkerMessageType.REQUEST_READER_CONFIG:
                 writer = next((w for w in _writers if hasattr(w, 'get_reader_config')), None)
                 if writer is None:
                     self._response_queue.put((msg, dict()))
                 else:
-                    self._response_queue.put(msg, writer.get_reader_config(diary_id=msg))
+                    self._response_queue.put((msg, writer.get_reader_config(diary_id=msg)))
             (msg_type, msg) = self._message_queue.get()
 
         [w.close() for w in _writers]
+
+    def close(self):
+        self._message_queue.put((common.DiaryWorkerMessageType.STOP, None))
+        self.join()
+        multiprocessing.Process.close(self)
 
 
 class AsyncDiary(base.DiaryBase):
@@ -59,7 +64,7 @@ class AsyncDiary(base.DiaryBase):
             self._response_semaphore.acquire()
             try:
                 self._message_queue.put((common.DiaryWorkerMessageType.REQUEST_ITERATION_DATA, self._diary_id))
-                self.solution.set_iteration_data(self._response_queue.get())
+                self.solution.set_iteration_data(self._response_queue.get()[1])
             finally:
                 self._response_semaphore.release()
         self._message_queue = None
@@ -75,7 +80,7 @@ class AsyncDiary(base.DiaryBase):
         self._response_semaphore.acquire()
         try:
             self._message_queue.put((common.DiaryWorkerMessageType.REQUEST_READER_CONFIG, self._diary_id))
-            self.solution.set_reader_config(**self._response_queue.get())
+            self.solution.set_reader_config(**self._response_queue.get()[1])
         finally:
             self._response_semaphore.release()
         self.write_record(self.solution)

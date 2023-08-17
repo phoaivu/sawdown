@@ -3,9 +3,6 @@ import numpy as np
 
 class ObjectiveBase(object):
 
-    def clone(self):
-        return self.__class__()
-
     def _objective(self, x):
         raise NotImplementedError()
 
@@ -41,9 +38,6 @@ class FirstOrderObjective(ObjectiveBase):
             raise ValueError('Null functors')
         self._objective_func = objective_func
         self._deriv_func = deriv_func
-
-    def clone(self):
-        return FirstOrderObjective(self._objective_func, self._deriv_func)
 
     def _objective(self, x):
         return self._objective_func(x)

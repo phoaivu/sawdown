@@ -12,8 +12,8 @@ class Declaration(object):
         self._problem = sawdown_pb2.Problem()
 
     def objective_functors(self, objective, grad):
-        self._problem.python_func_objective.objective = pickle.dumps(objective)
-        self._problem.python_func_objective.gradient = pickle.dumps(grad)
+        self._problem.python_func_objective.objective = serializer.encode_functor(objective)
+        self._problem.python_func_objective.gradient = serializer.encode_functor(grad)
         return self
 
     def objective_instance(self, objective_class, *args):
@@ -109,9 +109,13 @@ class Declaration(object):
             sawdown_pb2.Steplength(quadratic_interpolation=sawdown_pb2.QuadraticInterpolation()))
         return self
 
-    def circle_detection_steplength(self, circle_length=2):
-        self._problem.steplength_calculators.append(
-            sawdown_pb2.Steplength(circle_detection=sawdown_pb2.CircleDetection(circle_length=circle_length)))
+    def circle_detection_steplength(self, circle_length=2, decay_rate=0.5):
+        """
+        A form of conditional decayed steplength. The steplength is decayed by a factor of `decay_rate`
+        everytime the optimizer goes in circles of length `circle_length`.
+        """
+        self._problem.steplength_calculators.append(sawdown_pb2.Steplength(
+            circle_detection=sawdown_pb2.CircleDetection(circle_length=circle_length, decay_rate=decay_rate)))
         return self
 
     def stop_after(self, max_iters=1000):

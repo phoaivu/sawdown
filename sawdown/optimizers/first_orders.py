@@ -28,17 +28,17 @@ class FirstOrderOptimizerBase(base.OptimizerBase):
 
     def __direction(self, k, x_k, derivatives, diary):
         diary.set_items(derivative=derivatives.copy())
-        direction = self._direction_calculator.direction(k, x_k, derivatives, diary)
+        direction = self._direction_calculator.direction(k, x_k, derivatives, self._opti_math, diary)
         return constraints.ConstraintsMixIn._direction(self, k, x_k, direction, self._opti_math, diary)
 
     def __steplength(self, k, x_k, d_k, diary):
         steplength = 1.
         for calculator in self._steplength_calculators:
-            steplength = calculator.steplength(k, x_k, d_k, steplength)
+            steplength = calculator.steplength(k, x_k, d_k, steplength, self._opti_math)
         return constraints.ConstraintsMixIn._steplength(self, k, x_k, d_k, steplength, self._opti_math, diary)
 
     def __stop(self, k, x_k, delta, d_k):
-        terminations = map(lambda stopper: stopper.stop(k, x_k, delta, d_k), self._stoppers)
+        terminations = map(lambda stopper: stopper.stop(k, x_k, delta, d_k, self._opti_math), self._stoppers)
         return next((t for t in terminations if t != diaries.Termination.CONTINUE), diaries.Termination.CONTINUE)
 
     def _optimize(self, diary):
@@ -49,7 +49,7 @@ class FirstOrderOptimizerBase(base.OptimizerBase):
             x_k = self.__initialize(diary)
         except errors.InitializationError as ex:
             diary.set_solution(None, objective=np.nan, termination=diaries.Termination.FAILED_INITIALIZATION,
-                               msg=ex.reason)
+                               msg=ex.reason, exception=str(ex))
             return diary.solution
 
         termination_type = diaries.Termination.CONTINUE

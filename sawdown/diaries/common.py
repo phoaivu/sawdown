@@ -68,7 +68,8 @@ class Solution(collections.OrderedDict):
         if self._iteration_data is not None:
             return readers.MemoryReader(records=self._iteration_data)
 
-        if all(k in self for k in ['__reader_module__', '__reader_class__', '__reader_args__']):
-            module = importlib.import_module(self['__reader_module__'])
-            return getattr(module, self['__reader_class__'])(*self['__reader_args__'])
+        pickle_file = self.get('__pickle_file__', None)
+        if pickle_file is not None:
+            return readers.MemoryReader(pickle_file=pickle_file)
+
         raise RuntimeError('Reader configuration was not written, likely not supported by the writer.')

@@ -25,20 +25,22 @@ class BoundConstraints(base.ConstraintsBase):
         return BoundConstraints([v.clone() for v in self._variables + other._variables])
 
     def satisfied(self, x, opti_math):
-        return opti_math.in_bounds(x[self._indices], self._lower_bounds, self._upper_bounds)
+        return np.all(opti_math.in_bounds(x[self._indices], self._lower_bounds, self._upper_bounds))
 
     def initialization_direction(self, x_k, d_k, opti_math, diary):
         violate_lower = opti_math.lt(x_k[self._indices], self._lower_bounds)
         violate_upper = opti_math.gt(x_k[self._indices], self._upper_bounds)
         direction = np.zeros_like(x_k, dtype=float)
-        direction[self._indices][violate_lower] = self._lower_bounds[violate_lower] - x_k[self._indices][violate_lower]
-        direction[self._indices][violate_upper] = self._upper_bounds[violate_upper] - x_k[self._indices][violate_upper]
+        for bounds, violation in [(self._lower_bounds, violate_lower), (self._upper_bounds, violate_upper)]:
+            if np.any(violation):
+                projection_indices = [i for i, p in zip(self._indices, violation) if p]
+                direction[projection_indices] = bounds[violation] - x_k[projection_indices]
         if d_k is not None:
             direction = d_k + direction
         return direction
 
-    def initialization_steplength(self, k, x_k, d_k, max_steplength, opti_math, diary):
-        return np.minimum(max_steplength, 1. + np.exp(-float(k) / opti_math.initialization_decay_steps))
+    def initialization_steplength(self, k, x_k, d_k, max_steplength, config, opti_math, diary):
+        return np.minimum(max_steplength, 1. + np.exp(-float(k) / config.initialization_decay_steps))
 
     def initialize(self, initializer, config, opti_math, diary):
         if initializer is None:
@@ -49,7 +51,7 @@ class BoundConstraints(base.ConstraintsBase):
                              'but initialized variable dimension is {}'.format(max(self._indices), initializer.size))
 
         return opti_math.optimize(initializer, self.satisfied, self.initialization_direction,
-                                  self.initialization_steplength, config.initialization_max_iters, diary)
+                                  self.initialization_steplength, config, diary)
 
     def direction(self, x_k, d_k, opti_math, diary):
         if not np.all(opti_math.lt(self._lower_bounds, self._upper_bounds)):
@@ -62,10 +64,11 @@ class BoundConstraints(base.ConstraintsBase):
                                        np.isfinite(self._upper_bounds))
         projections = np.logical_and(active_bounds, np.logical_or(through_lower, through_upper))
         if np.any(projections):
-            constraint_idx = np.argmin(np.square(d_k[projections]))
-            constraint_idx = np.nonzero(projections)[0][constraint_idx].squeeze()
-            d_k[self._indices[constraint_idx]] = 0.
-            diary.set_items(bound_constraint_idx=self._indices[constraint_idx],
+            projection_indices = [i for i, p in zip(self._indices, projections) if p]
+            constraint_idx = np.argmin(np.square(d_k[projection_indices]))
+            constraint_idx = projection_indices[constraint_idx]
+            d_k[constraint_idx] = 0.
+            diary.set_items(bound_constraint_idx=constraint_idx,
                             msg_bound_constraint='Projected d_k onto bound constraint')
         return d_k
 
@@ -76,9 +79,14 @@ class BoundConstraints(base.ConstraintsBase):
         through_upper = np.logical_and(opti_math.positive(d_k[self._indices]),
                                        np.isfinite(self._upper_bounds))
         if np.any(np.logical_or(through_lower, through_upper)):
-            deltas = np.ones_like(self._lower_bounds, dtype=float) * max_steplength
-            deltas[through_lower] = (self._lower_bounds[through_lower] - x_k[through_lower]) / d_k[through_lower]
-            deltas[through_upper] = (self._upper_bounds[through_upper] - x_k[through_upper]) / d_k[through_upper]
+            deltas = np.ones_like(x_k, dtype=float) * max_steplength
+
+            lower_indices = [i for i, p in zip(self._indices, through_lower) if p]
+            deltas[lower_indices] = (self._lower_bounds[through_lower] - x_k[lower_indices]) / d_k[lower_indices]
+
+            upper_indices = [i for i, p in zip(self._indices, through_upper) if p]
+            deltas[upper_indices] = (self._upper_bounds[through_upper] - x_k[upper_indices]) / d_k[upper_indices]
+
             max_steplength = np.min(deltas)
         while (not self.satisfied(x_k + max_steplength * d_k, opti_math)) and opti_math.true_negative(-max_steplength):
             max_steplength = np.maximum(0., max_steplength * (1. - opti_math.epsilon))
@@ -103,8 +111,8 @@ class LinearInequalityConstraints(base.LinearConstraints):
             direction = d_k + direction
         return direction
 
-    def initialization_steplength(self, k, x_k, d_k, max_steplength, opti_math, diary):
-        return np.minimum(max_steplength, 1. + np.exp(-float(k) / opti_math.initialization_decay_steps))
+    def initialization_steplength(self, k, x_k, d_k, max_steplength, config, opti_math, diary):
+        return np.minimum(max_steplength, 1. + np.exp(-float(k) / config.initialization_decay_steps))
 
     def initialize(self, initializer, config, opti_math, diary):
         x_0 = np.zeros((self.var_dim(),), dtype=float) if initializer is None else initializer.copy()
@@ -112,7 +120,7 @@ class LinearInequalityConstraints(base.LinearConstraints):
             raise errors.InitializationError('Given a mismatch dimension initializer')
 
         return opti_math.optimize(x_0, self.satisfied, self.initialization_direction,
-                                  self.initialization_steplength, config.initialization_max_iters, diary)
+                                  self.initialization_steplength, config, diary)
 
     def direction(self, x_k, d_k, opti_math, diary):
         # Probably not needed.

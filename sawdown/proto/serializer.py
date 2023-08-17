@@ -1,5 +1,7 @@
 import importlib
 import pickle
+import types
+
 import numpy as np
 from sawdown.proto import sawdown_pb2
 
@@ -7,8 +9,7 @@ from sawdown.proto import sawdown_pb2
 
 
 def encode_ndarray(arr):
-    return sawdown_pb2.Value(array_value=sawdown_pb2.NdArray(
-            shape=arr.shape, values=arr.flatten(order='C').tolist(), dtype=str(arr.dtype)))
+    return sawdown_pb2.NdArray(shape=arr.shape, values=arr.flatten(order='C').tolist(), dtype=str(arr.dtype))
 
 
 def decode_ndarray(proto_msg):
@@ -23,7 +24,7 @@ def encode_args(*args):
         (int, lambda x: sawdown_pb2.Value(int_value=x)),
         (float, lambda x: sawdown_pb2.Value(float_value=x)),
         (bytes, lambda x: sawdown_pb2.Value(bytes_value=x)),
-        (np.ndarray, encode_ndarray)
+        (np.ndarray, lambda x: sawdown_pb2.Value(array_value=encode_ndarray(x)))
     ]
     for arg in args:
         mapper = next((m for t, m in mappers if isinstance(arg, t)), None)
@@ -55,3 +56,20 @@ def encode_method(method, *args):
 def decode_method(proto_msg):
     args = decode_args(proto_msg.args)
     return getattr(importlib.import_module(proto_msg.module), proto_msg.name)(*args)
+
+
+def encode_functor(func):
+    """
+    Rather hackish to include locally-declared and probably lambda functions.
+    """
+    code_obj = func.__code__
+    data = ((code_obj.co_argcount, code_obj.co_kwonlyargcount, code_obj.co_nlocals, code_obj.co_stacksize,
+             code_obj.co_flags, code_obj.co_code, code_obj.co_consts, code_obj.co_names, code_obj.co_varnames,
+             code_obj.co_filename, code_obj.co_name, code_obj.co_firstlineno, code_obj.co_lnotab),
+            None, func.__closure__)
+    return pickle.dumps(data)
+
+
+def decode_functor(data):
+    data = pickle.loads(data)
+    return types.FunctionType(types.CodeType(*data[0]), globals(), closure=data[2])

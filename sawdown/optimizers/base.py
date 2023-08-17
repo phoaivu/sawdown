@@ -32,8 +32,8 @@ class OptimizerBase(constraints.ConstraintsMixIn):
         field_name = proto_problem.WhichOneof('objective')
         if field_name == 'python_func_objective':
             self._objective = objectives.FirstOrderObjective(
-                objective_func=pickle.loads(proto_problem.python_func_objective.objective),
-                deriv_func=pickle.loads(proto_problem.python_func_objective.gradient))
+                objective_func=serializer.decode_functor(proto_problem.python_func_objective.objective),
+                deriv_func=serializer.decode_functor(proto_problem.python_func_objective.gradient))
         elif field_name == 'instance_objective':
             self._objective = serializer.decode_method(proto_problem.instance_objective)
         else:
@@ -74,7 +74,8 @@ class OptimizerBase(constraints.ConstraintsMixIn):
                     decay_steps=proto_steplength.decayed_steplength.decay_steps))
             elif field_name == 'circle_detection':
                 self._steplength_calculators.append(steplengths.CircleDetectionSteplength(
-                    circle_length=proto_steplength.circle_detection.circle_length))
+                    circle_length=proto_steplength.circle_detection.circle_length,
+                    decay_rate=proto_steplength.circle_detection.decay_rate))
             elif field_name is not None:
                 raise ValueError('Unsupported steplength calculator: {}'.format(field_name))
 
@@ -99,12 +100,13 @@ class OptimizerBase(constraints.ConstraintsMixIn):
                     self._config.binary_mapping_mode = config.BinaryMappingMode.ZERO_ONE
                 elif proto_config.binary_mapping_mode == sawdown_pb2.BINARY_MAPPING_ONES:
                     self._config.binary_mapping_mode = config.BinaryMappingMode.ONES
-                elif proto_config.binary_mapping_mode != sawdown_pb2.BINARY_MAPPING_UNSPECIFIED:
+                else:
                     raise ValueError('Unsupported binary mapping mode: {}'.format(
                         repr(proto_config.binary_mapping_mode)))
             for field_name in ['initialization_max_iters', 'initialization_decay_steps', 'parallelization']:
                 if proto_config.HasField(field_name):
                     setattr(self._config, field_name, getattr(proto_config, field_name))
+
         self._opti_math.check_precision()
 
         # Additional checks, for ill-informed users.
@@ -120,3 +122,5 @@ class OptimizerBase(constraints.ConstraintsMixIn):
                     var.var_index))
             if len([v for v in proto_problem.bound_constraints[i+1:] if v.var_index == var.var_index]) > 0:
                 raise ValueError('Variable #{} has duplicated bound constraints'.format(var.var_index))
+
+        [s.setup(self._objective) for s in self._steplength_calculators]

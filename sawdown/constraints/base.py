@@ -17,7 +17,7 @@ class ConstraintsBase(object):
     def initialization_direction(self, x_k, d_k, opti_math, diary):
         raise NotImplementedError()
 
-    def initialization_steplength(self, k, x_k, d_k, max_steplength, opti_math, diary):
+    def initialization_steplength(self, k, x_k, d_k, max_steplength, config, opti_math, diary):
         raise NotImplementedError()
 
     def initialize(self, initializer, config, opti_math, diary):
@@ -73,6 +73,12 @@ class EmptyConstraints(ConstraintsBase):
 
     def satisfied(self, x, opti_math):
         return True
+
+    def initialization_direction(self, x_k, d_k, opti_math, diary):
+        return d_k
+
+    def initialization_steplength(self, k, x_k, d_k, max_steplength, config, opti_math, diary):
+        return max_steplength
 
     def initialize(self, initializer, config, opti_math, diary):
         return initializer

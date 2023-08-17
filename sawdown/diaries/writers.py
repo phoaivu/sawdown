@@ -41,7 +41,7 @@ class MemoryWriter(DiaryWriter):
     def get_iteration_data(self, diary_id=''):
         if diary_id in {'', None}:
             return self._iteration_data
-        return self._iteration_data.get(diary_id, None)
+        return {diary_id: self._iteration_data.get(diary_id, (None, []))}
 
 
 class StreamWriter(DiaryWriter):
@@ -72,6 +72,7 @@ class FileWriter(MemoryWriter):
             refined_job_name = '{}_{}'.format(job_name, i)
         self._job_name = refined_job_name
         self._folder_path = os.path.join(self._path, self._job_name)
+        os.mkdir(self._folder_path)
         self._files = {}
 
     def write(self, diary_id='', parent_id='', entries=None):
@@ -89,7 +90,7 @@ class FileWriter(MemoryWriter):
         MemoryWriter.close(self)
         with open(os.path.join(self._folder_path, '{}.pkl'.format(self._job_name)), 'wb') as f:
             pickle.dump(self._iteration_data, f)
-        [f.close() for f in self._files]
+        [f.close() for f in self._files.values()]
         self._files.clear()
 
     def get_reader_config(self, diary_id=''):

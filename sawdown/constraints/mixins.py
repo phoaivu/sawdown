@@ -99,22 +99,31 @@ class ConstraintsMixIn(object):
                 d_k = c.initialization_direction(x_k, d_k, _opti_math, _diary)
             return d_k
 
-        def _stepper(k, x_k, d_k, length, _opti_math, _diary):
+        def _stepper(k, x_k, d_k, length, _config, _opti_math, _diary):
             for c in [self._equality_constraints, self._fixed_value_constraints]:
-                length = c.initialization_stepper(k, x_k, d_k, length, _opti_math, _diary)
+                length = c.initialization_steplength(k, x_k, d_k, length, _config, _opti_math, _diary)
             return length
 
-        return opti_math.optimize(initializer, _satisfied, _director, _stepper, config.initialization_max_iters, diary)
+        if initializer is None:
+            if hasattr(self._equality_constraints, 'var_dim'):
+                initializer = np.zeros((self._equality_constraints.var_dim(), ), dtype=float)
+            else:
+                raise RuntimeError('Unknown variable dimension. Try hinting the optimizer '
+                                   'via the initialization methods')
+
+        return opti_math.optimize(initializer, _satisfied, _director, _stepper, config, diary)
 
     def __inequality_initialize(self, initializer, config, opti_math, diary):
         if self._inequality_constraints.is_empty() and self._bound_constraints.is_empty():
             return initializer
-        elif self._inequality_constraints.is_empty():
+
+        empty_equalities = all(map(lambda c: c.is_empty(), [self._equality_constraints, self._fixed_value_constraints]))
+        if empty_equalities and self._inequality_constraints.is_empty():
             return self._bound_constraints.initialize(initializer, config, opti_math, diary)
-        elif self._bound_constraints.is_empty():
+        if empty_equalities and self._bound_constraints.is_empty():
             return self._inequality_constraints.initialize(initializer, config, opti_math, diary)
 
-        diary.set_items(x=initializer.copy(),
+        diary.set_items(x=None if initializer is None else initializer.copy(),
                         msg_constrained_initialize='Initialized for equalities constraints. Now for both.')
 
         def _satisfied(x_k, _opti_math):
@@ -130,14 +139,21 @@ class ConstraintsMixIn(object):
                 d_k = c.direction(x_k, d_k, _opti_math, _diary)
             return d_k
 
-        def _stepper(k, x_k, d_k, length, _opti_math, _diary):
+        def _stepper(k, x_k, d_k, length, _config, _opti_math, _diary):
             for c in [self._inequality_constraints, self._bound_constraints]:
-                length = c.initialization_steplength(k, x_k, d_k, length, _opti_math, _diary)
+                length = c.initialization_steplength(k, x_k, d_k, length, _config, _opti_math, _diary)
             for c in [self._equality_constraints, self._fixed_value_constraints]:
                 length = c.steplength(k, x_k, d_k, length, _opti_math, _diary)
             return length
 
-        return opti_math.optimize(initializer, _satisfied, _director, _stepper, config.initialization_max_iters, diary)
+        if initializer is None:
+            if hasattr(self._inequality_constraints, 'var_dim'):
+                initializer = np.zeros((self._inequality_constraints.var_dim(), ), dtype=float)
+            else:
+                raise RuntimeError('Unknown variable dimension. Try hinting the optimizer '
+                                   'via the initialization methods')
+
+        return opti_math.optimize(initializer, _satisfied, _director, _stepper, config, diary)
 
     def _constrained_initialize(self, initializer, config, opti_math, diary):
         """

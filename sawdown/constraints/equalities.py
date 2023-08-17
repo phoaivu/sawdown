@@ -53,7 +53,7 @@ class FixedValueConstraints(base.ConstraintsBase):
             direction = d_k + direction
         return direction
 
-    def initialization_steplength(self, k, x_k, d_k, max_steplength, opti_math, diary):
+    def initialization_steplength(self, k, x_k, d_k, max_steplength, config, opti_math, diary):
         return np.minimum(max_steplength, 1.)
 
     def initialize(self, initializer, config, opti_math, diary):
@@ -65,7 +65,7 @@ class FixedValueConstraints(base.ConstraintsBase):
                              'but initialized variable dimension is {}'.format(max(self._indices), initializer.size))
 
         return opti_math.optimize(initializer, self.satisfied, self.initialization_direction,
-                                  self.initialization_steplength, config.initialization_max_iters, diary)
+                                  self.initialization_steplength, config, diary)
 
     def direction(self, x_k, d_k, opti_math, diary):
         projected_d_k = d_k.copy()
@@ -102,7 +102,7 @@ class LinearEqualityConstraints(base.LinearConstraints):
             direction = d_k + direction
         return direction
 
-    def initialization_steplength(self, k, x_k, d_k, max_steplength, opti_math, diary):
+    def initialization_steplength(self, k, x_k, d_k, max_steplength, config, opti_math, diary):
         # Quadratic interpolation.
         delta = 0.
         beta = np.matmul(-d_k.T, d_k)
@@ -127,7 +127,7 @@ class LinearEqualityConstraints(base.LinearConstraints):
             raise errors.InitializationError('Given a mismatch dimension initializer')
 
         return opti_math.optimize(x_0, self.satisfied, self.initialization_direction,
-                                  self.initialization_steplength, config.initialization_max_iters, diary)
+                                  self.initialization_steplength, config, diary)
 
     def direction(self, x_k, d_k, opti_math, diary):
         return np.matmul(self._master_projector, d_k[:, None]).squeeze(axis=-1)

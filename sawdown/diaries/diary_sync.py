@@ -6,7 +6,7 @@ from sawdown.diaries import base, writers, common
 class SyncDiary(base.DiaryBase):
 
     def __init__(self, diary_id, proto_diaries, parent_writers=None):
-        base.DiaryBase.__init__(diary_id)
+        base.DiaryBase.__init__(self, diary_id)
         if parent_writers is None:
             parent_writers = writers.from_proto(proto_diaries)
         self._writers = parent_writers
@@ -25,10 +25,11 @@ class SyncDiary(base.DiaryBase):
             for writer in self._writers:
                 if not hasattr(writer, 'get_iteration_data'):
                     continue
-                iteration_data = writer.get_iteration_data(self._diary_id)
+                iteration_data = writer.get_iteration_data(None)
                 if iteration_data is not None:
                     self.solution.set_iteration_data(iteration_data)
                     break
+            [w.close() for w in self._writers]
 
     def set_solution(self, x, objective, termination=common.Termination.MAX_ITERATION, **kwargs):
         self.flush()
@@ -40,7 +41,7 @@ class SyncDiary(base.DiaryBase):
         for writer in self._writers:
             if not hasattr(writer, 'get_reader_config'):
                 continue
-            reader_config = writer.get_reader_config(self._diary_id)
+            reader_config = writer.get_reader_config(None)
             if len(reader_config) > 0:
                 self.solution.set_reader_config(**reader_config)
                 break
