@@ -3,6 +3,9 @@ from sawdown import diaries
 
 
 class StopperBase(object):
+    """
+    All hails Donald Knuth.
+    """
     pass
 
 
@@ -12,9 +15,6 @@ class MaxIterationsStopper(StopperBase):
 
     def stop(self, k, x_k, delta, d_k, opti_math):
         return diaries.Termination.CONTINUE if k < self._max_iters else diaries.Termination.MAX_ITERATION
-
-    def clone(self):
-        return MaxIterationsStopper(self._max_iters)
 
 
 class InfinitesimalStepStopper(StopperBase):
@@ -26,6 +26,3 @@ class InfinitesimalStepStopper(StopperBase):
                                     np.power(opti_math.epsilon, 2. / 3)):
             return diaries.Termination.INFINITESIMAL_STEP
         return diaries.Termination.CONTINUE
-
-    def clone(self):
-        return InfinitesimalStepStopper()

@@ -8,9 +8,6 @@ class SteplengthBase(object):
     def steplength(self, k, x_k, d_k, max_steplength, opti_math):
         raise NotImplementedError()
 
-    def clone(self):
-        raise NotImplementedError()
-
 
 class DecaySteplength(SteplengthBase):
 
@@ -20,9 +17,6 @@ class DecaySteplength(SteplengthBase):
 
     def steplength(self, k, x_k, d_k, max_steplength, opti_math):
         return max_steplength * np.exp(-float(k) / self._decay_steps)
-
-    def clone(self):
-        return DecaySteplength(self._decay_steps)
 
 
 class QuadraticInterpolationSteplength(SteplengthBase):
@@ -50,9 +44,6 @@ class QuadraticInterpolationSteplength(SteplengthBase):
             interpolated_step = min((-b / (2. * a)).squeeze(), max_steplength)
         return interpolated_step
 
-    def clone(self):
-        return QuadraticInterpolationSteplength()
-
 
 class CircleDetectionSteplength(SteplengthBase):
     """
@@ -78,6 +69,3 @@ class CircleDetectionSteplength(SteplengthBase):
                                        self._position_history[:, self._circle_length:])):
                 self._multiplier *= self._decay_rate
         return self._multiplier * max_steplength
-
-    def clone(self):
-        return CircleDetectionSteplength(self._circle_length)
