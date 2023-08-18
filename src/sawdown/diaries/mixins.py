@@ -15,7 +15,7 @@ class AsyncDiaryMixIn(object):
             if msg.WhichOneof('diary') is not None:
                 diary_conf = sawdown_pb2.Diary()
                 diary_conf.CopyFrom(msg)
-                self._diary_writer_config.append(diary_conf)
+                self._diary_writer_config.append(diary_conf.SerializeToString())
 
     def _start_diary_worker(self):
         self._diary_message, self._diary_response = (multiprocessing.Queue(), multiprocessing.Queue())

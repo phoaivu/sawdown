@@ -1,6 +1,8 @@
 import datetime
+import importlib
 import multiprocessing
 
+from sawdown.proto import sawdown_pb2
 from sawdown.diaries import base, common, writers
 
 
@@ -13,7 +15,15 @@ class DiaryWorker(multiprocessing.Process):
         self._writer_config = writer_config
 
     def run(self):
-        _writers = writers.from_proto(self._writer_config)
+        importlib.reload(sawdown_pb2)
+
+        writer_config = []
+        for serialized_config in self._writer_config:
+            writer = sawdown_pb2.Diary()
+            writer.MergeFromString(serialized_config)
+            writer_config.append(writer)
+
+        _writers = writers.from_proto(writer_config)
 
         (msg_type, msg) = self._message_queue.get()
         while msg_type != common.DiaryWorkerMessageType.STOP:

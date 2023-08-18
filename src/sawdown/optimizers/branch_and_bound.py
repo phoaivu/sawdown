@@ -1,5 +1,6 @@
 import multiprocessing
 import queue
+import importlib
 
 import numpy as np
 
@@ -32,9 +33,10 @@ def _solve(relaxed_problem, sub_problem, diary_message, diary_response, diary_re
 
 class Worker(multiprocessing.Process):
 
-    def __init__(self, relaxed_problem, problems, solutions, diary_messages, diary_response, response_semaphore):
+    def __init__(self, serialized_relaxed_problem, problems, solutions,
+                 diary_messages, diary_response, response_semaphore):
         multiprocessing.Process.__init__(self, name=self.__class__.__name__)
-        self._relaxed_problem = relaxed_problem
+        self._serialized_relaxed_problem = serialized_relaxed_problem
         self._problems = problems
         self._solutions = solutions
         self._diary_message = diary_messages
@@ -42,11 +44,17 @@ class Worker(multiprocessing.Process):
         self._diary_response_semaphore = response_semaphore
 
     def run(self):
+        # Since protobuf methods (in sawdown_pb2) are created when loaded, need to reload in a new process.
+        importlib.reload(sawdown_pb2)
+
+        relaxed_problem = sawdown_pb2.Problem()
+        relaxed_problem.MergeFromString(self._serialized_relaxed_problem)
+
         problem_proto = self._problems.get()
         while problem_proto is not None:
             problem = sawdown_pb2.IntegerSubproblem()
             problem.MergeFromString(problem_proto)
-            solution = _solve(self._relaxed_problem, problem,
+            solution = _solve(relaxed_problem, problem,
                               self._diary_message, self._diary_response, self._diary_response_semaphore)
             self._solutions.put((problem_proto, solution))
             problem_proto = self._problems.get()
@@ -102,7 +110,8 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
             problems.put(problem.SerializeToString())
         n_unsolved_problems = len(initial_problems)
 
-        workers = [Worker(relaxed_problem, problems, solutions, self._diary_message, self._diary_response,
+        workers = [Worker(relaxed_problem.SerializeToString(),
+                          problems, solutions, self._diary_message, self._diary_response,
                           self._diary_response_semaphore) for _ in range(self._n_processes())]
         [p.start() for p in workers]
 
