@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+#[tool.setuptools.package-dir]
+#sawdown = "src"
+# mypkg.module corresponds to lib/module.py
+#"mypkg.subpkg1" = "lib1"
+# mypkg.subpkg1.module1 corresponds to lib1/module1.py
+#"mypkg.subpkg2" = "lib2"
+# mypkg.subpkg2.module2 corresponds to lib2/module2.py
+
+#[tool.setuptools.packages]
+#[tool.setuptools.packages.find]
+#where = ["src"]
+#include = ["sawdown*"]
+#exclude = ["config", "directions", "errors", "initializers", "objectives", "opti_math", "silo", "steplengths",
+#    "stoppers"]
+#namespaces = false
+
+
+[project]
+name = "sawdown"
+version = "0.1"
+authors = [
+    {name = "Thor Hendricks", email = "example@company.com"},
+]
+description = "Optimization tool"
+readme = "README.md"
+requires-python = ">=3.7"
+keywords = ["optimization", "math", "integer program"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "numpy",
+    "protobuf",
+]

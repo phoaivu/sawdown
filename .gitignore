@@ -3,12 +3,10 @@
 venv/
 
 # Disutils boilerplate
+build/
 dist/
 sawdown.egg-info/
 __pycache__/
-
-# Protobuf auto-generated
-sawdown_pb2.py
 
 # test logs
 tests/logs/
