@@ -11,6 +11,7 @@ class DiaryWorkerMessageType(enum.IntEnum):
     STOP = 2
     REQUEST_ITERATION_DATA = 3
     REQUEST_READER_CONFIG = 4
+    CLOSE_DIARY = 5
 
 
 class Termination(enum.IntEnum):

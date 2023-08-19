@@ -60,12 +60,12 @@ class FirstOrderOptimizerBase(base.OptimizerBase):
 
             d_k = self.__direction(k, x_k, gradients, diary)
             delta = self.__steplength(k, x_k, d_k, diary)
-            diary.set_items(x_k=x_k.copy(), d_k=d_k.copy(), delta=delta)
+            diary.set_items(x_k_prev=x_k.copy(), d_k=d_k.copy(), delta=delta)
 
             x_k_prev = x_k.copy()
             # x_k = x_k_prev + delta * d_k
             x_k = np.add(x_k_prev, np.multiply(delta, d_k))
-            diary.set_items(x_k_prev=x_k_prev, x_k_diff=x_k - x_k_prev,
+            diary.set_items(x_k=x_k.copy(), x_k_diff=x_k - x_k_prev,
                             changes=delta * d_k, x_k_dtype=x_k.dtype, x_k_prev_dtype=x_k_prev.dtype,
                             d_k_dtype=d_k.dtype)
 

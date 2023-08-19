@@ -12,7 +12,7 @@ class BoundConstraints(base.ConstraintsBase):
             raise ValueError('Duplicated entries in the list of bound variables')
         if len(variables) == 0:
             raise ValueError('Empty bound constraints')
-        self._variables = variables
+        self._variables = sorted(variables, key=lambda _: _.index)
         self._indices = [v.index for v in self._variables]
         self._lower_bounds = np.asarray([v.lower_bound for v in self._variables], dtype=float)
         self._upper_bounds = np.asarray([v.upper_bound for v in self._variables], dtype=float)
@@ -56,38 +56,41 @@ class BoundConstraints(base.ConstraintsBase):
     def direction(self, x_k, d_k, opti_math, diary):
         if not np.all(opti_math.lt(self._lower_bounds, self._upper_bounds)):
             raise ValueError('Tiny bound constraint on some variables. Use fixed value constraints instead')
-        active_bounds = np.logical_or(opti_math.equals(x_k[self._indices], self._lower_bounds),
-                                      opti_math.equals(x_k[self._indices], self._upper_bounds))
-        through_lower = np.logical_and(opti_math.non_positive(d_k[self._indices]),
-                                       np.isfinite(self._lower_bounds))
-        through_upper = np.logical_and(opti_math.non_negative(d_k[self._indices]),
-                                       np.isfinite(self._upper_bounds))
-        projections = np.logical_and(active_bounds, np.logical_or(through_lower, through_upper))
+        # Variables on the (finite) lower bounds and want to decrease
+        through_lower = np.logical_and(opti_math.equals(x_k[self._indices], self._lower_bounds),
+                                       opti_math.non_positive(d_k[self._indices]))
+        # Variables on the (finite) upper bounds and want to increase
+        through_upper = np.logical_and(opti_math.equals(x_k[self._indices], self._upper_bounds),
+                                       opti_math.non_negative(d_k[self._indices]))
+        projections = np.logical_or(through_lower, through_upper)
         if np.any(projections):
             projection_indices = [i for i, p in zip(self._indices, projections) if p]
-            constraint_idx = np.argmin(np.square(d_k[projection_indices]))
-            constraint_idx = projection_indices[constraint_idx]
-            d_k[constraint_idx] = 0.
-            diary.set_items(bound_constraint_idx=constraint_idx,
-                            msg_bound_constraint='Projected d_k onto bound constraint')
+            # constraint_idx = np.argmin(np.square(d_k[projection_indices]))
+            # constraint_idx = projection_indices[constraint_idx]
+            d_k[projection_indices] = 0.
+            diary.set_items(bound_constraint_indices=projection_indices,
+                            msg_bound_constraint='Projected d_k onto {} bound constraints'.format(
+                                len(projection_indices)))
         return d_k
 
     def steplength(self, k, x_k, d_k, max_steplength, opti_math, diary):
         assert self.satisfied(x_k, opti_math)
-        through_lower = np.logical_and(opti_math.negative(d_k[self._indices]),
-                                       np.isfinite(self._lower_bounds))
-        through_upper = np.logical_and(opti_math.positive(d_k[self._indices]),
-                                       np.isfinite(self._upper_bounds))
-        if np.any(np.logical_or(through_lower, through_upper)):
-            deltas = np.ones_like(x_k, dtype=float) * max_steplength
+        # Variables (not on the lower bound) and decreasing
+        hitting_lower = np.logical_and(np.logical_not(opti_math.equals(x_k[self._indices], self._lower_bounds)),
+                                       opti_math.negative(d_k[self._indices]))
+        # Variables (not on the upper bound) and increasing
+        hitting_upper = np.logical_and(np.logical_not(opti_math.equals(x_k[self._indices], self._upper_bounds)),
+                                       opti_math.positive(d_k[self._indices]))
 
-            lower_indices = [i for i, p in zip(self._indices, through_lower) if p]
-            deltas[lower_indices] = (self._lower_bounds[through_lower] - x_k[lower_indices]) / d_k[lower_indices]
+        deltas = np.ones_like(x_k, dtype=float) * max_steplength
 
-            upper_indices = [i for i, p in zip(self._indices, through_upper) if p]
-            deltas[upper_indices] = (self._upper_bounds[through_upper] - x_k[upper_indices]) / d_k[upper_indices]
+        lower_indices = [i for i, p in zip(self._indices, hitting_lower) if p]
+        deltas[lower_indices] = (self._lower_bounds[hitting_lower] - x_k[lower_indices]) / d_k[lower_indices]
 
-            max_steplength = np.min(deltas)
+        upper_indices = [i for i, p in zip(self._indices, hitting_upper) if p]
+        deltas[upper_indices] = (self._upper_bounds[hitting_upper] - x_k[upper_indices]) / d_k[upper_indices]
+
+        max_steplength = np.min(deltas)
         while (not self.satisfied(x_k + max_steplength * d_k, opti_math)) and opti_math.true_negative(-max_steplength):
             max_steplength = np.maximum(0., max_steplength * (1. - opti_math.epsilon))
         return max_steplength

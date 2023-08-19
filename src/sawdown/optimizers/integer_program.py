@@ -29,10 +29,15 @@ class MipOptimizer(base.OptimizerBase, constraints.IntegerConstraintsMixIn, bran
         initial_problem = sawdown_pb2.IntegerSubproblem()
 
         # merge the integer and binary constraints into bound constraints.
+        fixed_vars = set(v.var_index for v in self._proto_problem.fixed_value_constraints)
         existing_bounded_vars = set(v.var_index for v in self._proto_problem.bound_constraints)
         for integer_var in self._integer_vars:
             if integer_var.index in existing_bounded_vars:
                 raise ValueError('Integer variable #{} has duplicated bound constraints'.format(integer_var.index))
+            if integer_var.index in fixed_vars:
+                diary.append_items(excluded_integer_vars=integer_var.index)
+                continue
+
             if any(map(np.isfinite, (integer_var.lower_bound, integer_var.upper_bound))):
                 existing_bounded_vars.add(integer_var.index)
                 initial_problem.bound_constraints.append(sawdown_pb2.BoundConstraint(
@@ -42,6 +47,10 @@ class MipOptimizer(base.OptimizerBase, constraints.IntegerConstraintsMixIn, bran
         for binary_var_index in self._binary_vars:
             if binary_var_index in existing_bounded_vars:
                 raise ValueError('Binary variable #{} has duplicated bound constraints'.format(binary_var_index))
+            if binary_var_index in fixed_vars:
+                diary.append_items(excluded_binary_vars=binary_var_index)
+                continue
+
             existing_bounded_vars.add(binary_var_index)
             initial_problem.bound_constraints.append(sawdown_pb2.BoundConstraint(
                 var_index=binary_var_index, lower=binary_var_lower, upper=binary_var_upper))
@@ -84,8 +93,10 @@ class MipOptimizer(base.OptimizerBase, constraints.IntegerConstraintsMixIn, bran
         binary_var = split_idx >= integer_residuals.size
         if binary_var:
             split_idx = self._binary_vars[split_idx - integer_residuals.size]
+            diary.set_items(msg_mip_branch='Branch on binary variable #{}'.format(split_idx))
         else:
             split_idx = self._integer_var_indices[split_idx]
+            diary.set_items(msg_mip_branch='Branch on integer variable #{}'.format(split_idx))
 
         assert split_idx not in set(v.var_index for v in sub_problem.fixed_value_constraints)
         template_problem = sawdown_pb2.IntegerSubproblem()

@@ -21,6 +21,8 @@ class SyncDiary(base.DiaryBase):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._starting_time = None
+        [w.close_diary(self._diary_id) for w in self._writers]
+
         if self.is_root() and self.solution is not None:
             for writer in self._writers:
                 if not hasattr(writer, 'get_iteration_data'):

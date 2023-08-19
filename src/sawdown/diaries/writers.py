@@ -23,6 +23,14 @@ class DiaryWriter(object):
     def write(self, diary_id='', parent_id='', entries=None):
         raise NotImplementedError()
 
+    def close_diary(self, diary_id=''):
+        """
+        Close the specific resource consumed by the given diary_id.
+        :param diary_id:
+        :return:
+        """
+        pass
+
     def close(self):
         pass
 
@@ -85,6 +93,12 @@ class FileWriter(MemoryWriter):
         for k, v in entries.items():
             file_output.write('{}: {}\n'.format(k, v))
         file_output.write('---------------\n')
+
+    def close_diary(self, diary_id=''):
+        file_output = self._files.get(diary_id, None)
+        if file_output is not None:
+            file_output.close()
+            self._files.pop(diary_id)
 
     def close(self):
         MemoryWriter.close(self)

@@ -42,6 +42,9 @@ class DiaryWorker(multiprocessing.Process):
                     self._response_queue.put((msg, dict()))
                 else:
                     self._response_queue.put((msg, writer.get_reader_config(diary_id=msg)))
+            elif msg_type == common.DiaryWorkerMessageType.CLOSE_DIARY:
+                [w.close_diary(diary_id=msg) for w in _writers]
+
             (msg_type, msg) = self._message_queue.get()
 
         [w.close() for w in _writers]
@@ -70,6 +73,7 @@ class AsyncDiary(base.DiaryBase):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._starting_time = None
+        self._message_queue.put((common.DiaryWorkerMessageType.CLOSE_DIARY, self._diary_id))
         if self.is_root() and self.solution is not None:
             self._response_semaphore.acquire()
             try:

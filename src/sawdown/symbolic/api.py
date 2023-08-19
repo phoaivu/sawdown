@@ -65,7 +65,17 @@ class Declaration(object):
         End-users normally do not use this (because you don't need to optimize a fixed variable!),
         it is used mainly to speed-up binary and integer programs.
         """
-        self._problem.fixed_value_constraints.append(sawdown_pb2.FixedValueConstraint(var_index=var_index, value=value))
+        return self.fixed_value_constraints((var_index,), (value,))
+
+    def fixed_value_constraints(self, var_indices=(), values=()):
+        values = tuple(values)
+        if len(set(var_indices)) < len(var_indices):
+            raise ValueError('Duplicated variable indices')
+        if len(values) == 1 and len(var_indices) > 1:
+            values = [values[0] for _ in var_indices]
+        for var_index, value in zip(var_indices, values):
+            self._problem.fixed_value_constraints.append(
+                sawdown_pb2.FixedValueConstraint(var_index=var_index, value=value))
         return self
 
     def bound_constraint(self, var_index=0, lower=-np.inf, upper=np.inf):
