@@ -1,4 +1,5 @@
 syntax = "proto2";
+import "tensorcube.proto";
 
 message NdArray {
     repeated uint64 shape = 1;
@@ -31,6 +32,15 @@ message PythonFunctions {
     optional bytes gradient = 2;
 }
 
+
+message TensorcubeObjective {
+    required tensorcube.Graph graph = 1;
+    repeated string variables = 2;
+    repeated int64 var_dims = 3;
+    required string objective = 4;
+    repeated string gradients = 5;
+    repeated Value args = 6;
+}
 
 // Constraints
 
@@ -158,6 +168,7 @@ message Problem {
     oneof objective {
         PythonFunctions python_func_objective = 10;
         Method instance_objective = 11;
+        TensorcubeObjective tensorcube_objective = 12;
     }
 
     repeated Initializer initializers = 30;

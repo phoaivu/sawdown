@@ -1,0 +1,91 @@
+syntax = "proto2";
+package tensorcube;
+
+message NdArray {
+    repeated uint64 shape = 1;
+    repeated double values = 2;
+    optional string dtype = 3;
+}
+
+message InputSlot {
+    optional string name = 1;
+    optional string source_name = 2;
+    optional string grad_name = 3;
+}
+
+message NodeData {
+    optional string name = 1;
+    repeated int64 expected_shape = 2;
+    optional NdArray value = 3;
+    repeated InputSlot inputs = 4;
+}
+
+message Constant {
+    required NodeData node_data = 1;
+}
+
+message Variable {
+    required NodeData node_data = 1;
+}
+
+message ZerosLike {
+    required NodeData node_data = 1;
+}
+
+message Transpose {
+    required NodeData node_data = 1;
+    repeated int64 axes = 2;
+}
+
+message Square {
+    required NodeData node_data = 1;
+}
+
+message Sum {
+    required NodeData node_data = 1;
+    repeated int64 axis = 2;
+    optional bool keepdims = 3;
+}
+
+message Add {
+    required NodeData node_data = 1;
+}
+
+message Multiply {
+    required NodeData node_data = 1;
+}
+
+message Matmul {
+    required NodeData node_data = 1;
+}
+
+message TensorDot {
+    required NodeData node_data = 1;
+    optional int64 axes = 2;
+}
+
+message SumList {
+    required NodeData node_data = 1;
+}
+
+message Node {
+    oneof node {
+        Constant constant = 1;
+        Variable variable = 2;
+        ZerosLike zeroslike = 3;
+        Transpose transpose = 4;
+        Square square = 5;
+        Sum sum = 6;
+
+        Add add = 30;
+        Multiply multiply = 31;
+        Matmul matmul = 32;
+        TensorDot tensordot = 33;
+
+        SumList sumlist = 100;
+    }
+}
+
+message Graph {
+    repeated Node nodes = 1;
+}

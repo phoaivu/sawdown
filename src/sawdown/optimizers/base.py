@@ -1,4 +1,5 @@
-from sawdown import objectives, initializers, constraints, directions, steplengths, stoppers, config, opti_math
+from sawdown import objectives, objectives_tensorcube, initializers, constraints, directions, \
+    steplengths, stoppers, config, opti_math
 from sawdown.proto import sawdown_pb2, serializer
 
 
@@ -34,6 +35,8 @@ class OptimizerBase(constraints.ConstraintsMixIn):
                 deriv_func=serializer.decode_functor(proto_problem.python_func_objective.gradient))
         elif field_name == 'instance_objective':
             self._objective = serializer.decode_method(proto_problem.instance_objective)
+        elif field_name == 'tensorcube_objective':
+            self._objective = objectives_tensorcube.TensorcubeObjective.from_proto(proto_problem.tensorcube_objective)
         else:
             raise ValueError('Undefined objective')
 

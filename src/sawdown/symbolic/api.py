@@ -1,9 +1,8 @@
 import os.path
-import pickle
 
 import numpy as np
 
-from sawdown import objectives, optimizers
+from sawdown import objectives, objectives_tensorcube, optimizers
 from sawdown.proto import sawdown_pb2, serializer
 
 
@@ -20,6 +19,11 @@ class Declaration(object):
         if not issubclass(objective_class, objectives.ObjectiveBase):
             raise ValueError('Need to be a subclass of ObjectiveBase')
         self._problem.instance_objective.CopyFrom(serializer.encode_method(objective_class, *args))
+        return self
+
+    def objective_symbolic(self, factory, var_dims=()):
+        proto_obj = objectives_tensorcube.tensorcube_objective(factory, var_dims).to_proto()
+        self._problem.tensorcube_objective.CopyFrom(proto_obj)
         return self
 
     def fixed_initializer(self, initializer):
