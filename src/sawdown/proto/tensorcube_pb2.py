@@ -13,7 +13,7 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10tensorcube.proto\x12\ntensorcube\"7\n\x07NdArray\x12\r\n\x05shape\x18\x01 \x03(\x04\x12\x0e\n\x06values\x18\x02 \x03(\x01\x12\r\n\x05\x64type\x18\x03 \x01(\t\"A\n\tInputSlot\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x13\n\x0bsource_name\x18\x02 \x01(\t\x12\x11\n\tgrad_name\x18\x03 \x01(\t\"{\n\x08NodeData\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x16\n\x0e\x65xpected_shape\x18\x02 \x03(\x03\x12\"\n\x05value\x18\x03 \x01(\x0b\x32\x13.tensorcube.NdArray\x12%\n\x06inputs\x18\x04 \x03(\x0b\x32\x15.tensorcube.InputSlot\"3\n\x08\x43onstant\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\"3\n\x08Variable\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\"4\n\tZerosLike\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\"B\n\tTranspose\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\x12\x0c\n\x04\x61xes\x18\x02 \x03(\x03\"1\n\x06Square\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\"N\n\x03Sum\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\x12\x0c\n\x04\x61xis\x18\x02 \x03(\x03\x12\x10\n\x08keepdims\x18\x03 \x01(\x08\".\n\x03\x41\x64\x64\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\"3\n\x08Multiply\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\"1\n\x06Matmul\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\"B\n\tTensorDot\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\x12\x0c\n\x04\x61xes\x18\x02 \x01(\x03\"2\n\x07SumList\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\"\xc4\x03\n\x04Node\x12(\n\x08\x63onstant\x18\x01 \x01(\x0b\x32\x14.tensorcube.ConstantH\x00\x12(\n\x08variable\x18\x02 \x01(\x0b\x32\x14.tensorcube.VariableH\x00\x12*\n\tzeroslike\x18\x03 \x01(\x0b\x32\x15.tensorcube.ZerosLikeH\x00\x12*\n\ttranspose\x18\x04 \x01(\x0b\x32\x15.tensorcube.TransposeH\x00\x12$\n\x06square\x18\x05 \x01(\x0b\x32\x12.tensorcube.SquareH\x00\x12\x1e\n\x03sum\x18\x06 \x01(\x0b\x32\x0f.tensorcube.SumH\x00\x12\x1e\n\x03\x61\x64\x64\x18\x1e \x01(\x0b\x32\x0f.tensorcube.AddH\x00\x12(\n\x08multiply\x18\x1f \x01(\x0b\x32\x14.tensorcube.MultiplyH\x00\x12$\n\x06matmul\x18  \x01(\x0b\x32\x12.tensorcube.MatmulH\x00\x12*\n\ttensordot\x18! \x01(\x0b\x32\x15.tensorcube.TensorDotH\x00\x12&\n\x07sumlist\x18\x64 \x01(\x0b\x32\x13.tensorcube.SumListH\x00\x42\x06\n\x04node\"(\n\x05Graph\x12\x1f\n\x05nodes\x18\x01 \x03(\x0b\x32\x10.tensorcube.Node')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x10tensorcube.proto\x12\ntensorcube\"7\n\x07NdArray\x12\r\n\x05shape\x18\x01 \x03(\x04\x12\x0e\n\x06values\x18\x02 \x03(\x01\x12\r\n\x05\x64type\x18\x03 \x01(\t\"A\n\tInputSlot\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x13\n\x0bsource_name\x18\x02 \x01(\t\x12\x11\n\tgrad_name\x18\x03 \x01(\t\"\x92\x01\n\x08NodeData\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x16\n\x0e\x65xpected_shape\x18\x02 \x03(\x03\x12\"\n\x05value\x18\x03 \x01(\x0b\x32\x13.tensorcube.NdArray\x12%\n\x06inputs\x18\x04 \x03(\x0b\x32\x15.tensorcube.InputSlot\x12\x15\n\rgradient_name\x18\x05 \x01(\t\"3\n\x08\x43onstant\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\"3\n\x08Variable\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\"4\n\tZerosLike\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\"3\n\x08OnesLike\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\"B\n\tTranspose\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\x12\x0c\n\x04\x61xes\x18\x02 \x03(\x03\"1\n\x06Square\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\"N\n\x03Sum\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\x12\x0c\n\x04\x61xis\x18\x02 \x03(\x03\x12\x10\n\x08keepdims\x18\x03 \x01(\x08\".\n\x03\x41\x64\x64\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\"3\n\x08Multiply\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\"1\n\x06Matmul\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\"B\n\tTensorDot\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\x12\x0c\n\x04\x61xes\x18\x02 \x01(\x03\"2\n\x07SumList\x12\'\n\tnode_data\x18\x01 \x02(\x0b\x32\x14.tensorcube.NodeData\"\xee\x03\n\x04Node\x12(\n\x08\x63onstant\x18\x01 \x01(\x0b\x32\x14.tensorcube.ConstantH\x00\x12(\n\x08variable\x18\x02 \x01(\x0b\x32\x14.tensorcube.VariableH\x00\x12*\n\tzeroslike\x18\x03 \x01(\x0b\x32\x15.tensorcube.ZerosLikeH\x00\x12(\n\x08oneslike\x18\x04 \x01(\x0b\x32\x14.tensorcube.OnesLikeH\x00\x12*\n\ttranspose\x18\x05 \x01(\x0b\x32\x15.tensorcube.TransposeH\x00\x12$\n\x06square\x18\x06 \x01(\x0b\x32\x12.tensorcube.SquareH\x00\x12\x1e\n\x03sum\x18\x07 \x01(\x0b\x32\x0f.tensorcube.SumH\x00\x12\x1e\n\x03\x61\x64\x64\x18\x1e \x01(\x0b\x32\x0f.tensorcube.AddH\x00\x12(\n\x08multiply\x18\x1f \x01(\x0b\x32\x14.tensorcube.MultiplyH\x00\x12$\n\x06matmul\x18  \x01(\x0b\x32\x12.tensorcube.MatmulH\x00\x12*\n\ttensordot\x18! \x01(\x0b\x32\x15.tensorcube.TensorDotH\x00\x12&\n\x07sumlist\x18\x64 \x01(\x0b\x32\x13.tensorcube.SumListH\x00\x42\x06\n\x04node\"(\n\x05Graph\x12\x1f\n\x05nodes\x18\x01 \x03(\x0b\x32\x10.tensorcube.Node')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
@@ -24,32 +24,34 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _globals['_NDARRAY']._serialized_end=87
   _globals['_INPUTSLOT']._serialized_start=89
   _globals['_INPUTSLOT']._serialized_end=154
-  _globals['_NODEDATA']._serialized_start=156
-  _globals['_NODEDATA']._serialized_end=279
-  _globals['_CONSTANT']._serialized_start=281
-  _globals['_CONSTANT']._serialized_end=332
-  _globals['_VARIABLE']._serialized_start=334
-  _globals['_VARIABLE']._serialized_end=385
-  _globals['_ZEROSLIKE']._serialized_start=387
-  _globals['_ZEROSLIKE']._serialized_end=439
-  _globals['_TRANSPOSE']._serialized_start=441
-  _globals['_TRANSPOSE']._serialized_end=507
-  _globals['_SQUARE']._serialized_start=509
-  _globals['_SQUARE']._serialized_end=558
-  _globals['_SUM']._serialized_start=560
-  _globals['_SUM']._serialized_end=638
-  _globals['_ADD']._serialized_start=640
-  _globals['_ADD']._serialized_end=686
-  _globals['_MULTIPLY']._serialized_start=688
-  _globals['_MULTIPLY']._serialized_end=739
-  _globals['_MATMUL']._serialized_start=741
-  _globals['_MATMUL']._serialized_end=790
-  _globals['_TENSORDOT']._serialized_start=792
-  _globals['_TENSORDOT']._serialized_end=858
-  _globals['_SUMLIST']._serialized_start=860
-  _globals['_SUMLIST']._serialized_end=910
-  _globals['_NODE']._serialized_start=913
-  _globals['_NODE']._serialized_end=1365
-  _globals['_GRAPH']._serialized_start=1367
-  _globals['_GRAPH']._serialized_end=1407
+  _globals['_NODEDATA']._serialized_start=157
+  _globals['_NODEDATA']._serialized_end=303
+  _globals['_CONSTANT']._serialized_start=305
+  _globals['_CONSTANT']._serialized_end=356
+  _globals['_VARIABLE']._serialized_start=358
+  _globals['_VARIABLE']._serialized_end=409
+  _globals['_ZEROSLIKE']._serialized_start=411
+  _globals['_ZEROSLIKE']._serialized_end=463
+  _globals['_ONESLIKE']._serialized_start=465
+  _globals['_ONESLIKE']._serialized_end=516
+  _globals['_TRANSPOSE']._serialized_start=518
+  _globals['_TRANSPOSE']._serialized_end=584
+  _globals['_SQUARE']._serialized_start=586
+  _globals['_SQUARE']._serialized_end=635
+  _globals['_SUM']._serialized_start=637
+  _globals['_SUM']._serialized_end=715
+  _globals['_ADD']._serialized_start=717
+  _globals['_ADD']._serialized_end=763
+  _globals['_MULTIPLY']._serialized_start=765
+  _globals['_MULTIPLY']._serialized_end=816
+  _globals['_MATMUL']._serialized_start=818
+  _globals['_MATMUL']._serialized_end=867
+  _globals['_TENSORDOT']._serialized_start=869
+  _globals['_TENSORDOT']._serialized_end=935
+  _globals['_SUMLIST']._serialized_start=937
+  _globals['_SUMLIST']._serialized_end=987
+  _globals['_NODE']._serialized_start=990
+  _globals['_NODE']._serialized_end=1484
+  _globals['_GRAPH']._serialized_start=1486
+  _globals['_GRAPH']._serialized_end=1526
 # @@protoc_insertion_point(module_scope)

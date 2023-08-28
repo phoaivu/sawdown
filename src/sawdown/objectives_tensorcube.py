@@ -32,7 +32,6 @@ def tensorcube_objective(func, var_dims=()):
     return TensorcubeObjective(g, [v.name for v in variables], var_dims, obj.name, [g.name for g in grads])
 
 
-
 class TensorcubeObjective(objectives.ObjectiveBase):
 
     def __init__(self, graph, var_names=(), var_dims=(), objective_name='', grad_names=()):
@@ -80,7 +79,9 @@ class TensorcubeObjective(objectives.ObjectiveBase):
                 var_dim, var_dim))
 
     def to_proto(self):
-        proto_obj = sawdown_pb2.TensorcubeObjective(graph=self._graph.to_proto(), objective=self._objective_name)
+        graph_proto = self._graph.to_proto()
+        print(graph_proto)
+        proto_obj = sawdown_pb2.TensorcubeObjective(graph=graph_proto, objective=self._objective_name)
         for d, var_name, grad_name in zip(self._var_dims, self._var_names, self._grad_names):
             proto_obj.variables.append(var_name)
             proto_obj.var_dims.append(d)

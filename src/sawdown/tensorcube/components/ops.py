@@ -15,6 +15,10 @@ def zeros_like(x, name=''):
     return nodes_tensor.ZerosLike(x, name=name)
 
 
+def ones_like(x, name=''):
+    return nodes_tensor.OnesLike(x, name=name)
+
+
 def transpose(x, axes=None, name=''):
     return nodes_tensor.Transpose(x, axes, name=name)
 

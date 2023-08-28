@@ -40,11 +40,20 @@ class TensorNode(nodes.Node):
     def gradient(self):
         return self._gradient
 
+    def set_gradient(self, grad_node):
+        """
+        Only used in deserialization
+        :type grad_node: tensorcube.components.nodes_tensor.TensorNode
+        """
+        self._gradient = grad_node
+
     def to_proto(self):
         node_data = nodes.Node.to_proto(self)
         if self._expected_shape is not None:
             for d in self._expected_shape:
                 node_data.expected_shape.append(-1 if d is None else d)
+        if self._gradient is not None:
+            node_data.gradient_name = self._gradient.name
         proto_cls = getattr(tensorcube_pb2, self.__class__.__name__)
         return proto_cls(node_data=node_data)
 
@@ -188,6 +197,19 @@ class ZerosLike(UnaryOp):
 
     def _compute(self):
         self._value = np.zeros_like(self.argument.value())
+
+    def _compute_backward(self, accumulated_grads):
+        self.argument.set_gradient(np.zeros_like(self._value))
+
+
+class OnesLike(UnaryOp):
+
+    def __init__(self, argument, name=''):
+        argument = _to_node(argument)
+        UnaryOp.__init__(self, argument, name=name, expected_shape=argument.expected_shape)
+
+    def _compute(self):
+        self._value = np.ones_like(self.argument.value())
 
     def _compute_backward(self, accumulated_grads):
         self.argument.set_gradient(np.zeros_like(self._value))
@@ -378,7 +400,7 @@ class Multiply(BinaryOp):
             self.right.set_gradient(ops.multiply(accumulated_grads, self.left.source))
         else:
             small, big = (self.left, self.right) if right_shape == output_shape else (self.right, self.left)
-            big.set_gradient(ops.multiply(accumulated_grads, ops.zeros_like(big.source) + small.source))
+            big.set_gradient(ops.multiply(accumulated_grads, ops.multiply(ops.ones_like(big.source), small.source)))
             small.set_gradient(ops.tensordot(ops.multiply(accumulated_grads, big.source),
                                              _tie_grads(output_shape, small.source.value.shape),
                                              axes=len(output_shape)))
@@ -508,6 +530,10 @@ def from_proto(proto_node, node_getter):
         node_data = proto_node.zeroslike.node_data
         argument = _get_inputs(node_data, node_getter)['argument']
         return ZerosLike(argument=argument, name=node_data.name)
+    if node_type == OnesLike.__name__.lower():
+        node_data = proto_node.oneslike.node_data
+        argument = _get_inputs(node_data, node_getter)['argument']
+        return OnesLike(argument=argument, name=node_data.name)
     if node_type == Transpose.__name__.lower():
         node_data = proto_node.transpose.node_data
         argument = _get_inputs(node_data, node_getter)['argument']
@@ -557,9 +583,15 @@ def read_graph(proto_graph):
         for proto_node in proto_graph.nodes[::-1]:
             node_type = proto_node.WhichOneof('node')
             node_data = getattr(proto_node, node_type).node_data
+
+            # Gradient of the node
+            node = g.get_node(node_data.name)
+            if node_data.gradient_name != '':
+                node.set_gradient(g.get_node(node_data.gradient_name))
+
+            # Gradient of the input slots
             for input_slot in node_data.inputs:
                 if input_slot.grad_name != '':
                     # Good glory God.
-                    getattr(g.get_node(node_data.name), input_slot.name).set_gradient(
-                        g.get_node(input_slot.grad_name))
+                    getattr(node, input_slot.name).set_gradient(g.get_node(input_slot.grad_name))
     return g

@@ -18,6 +18,9 @@ message NodeData {
     repeated int64 expected_shape = 2;
     optional NdArray value = 3;
     repeated InputSlot inputs = 4;
+
+    // Name of the gradient node
+    optional string gradient_name = 5;
 }
 
 message Constant {
@@ -29,6 +32,10 @@ message Variable {
 }
 
 message ZerosLike {
+    required NodeData node_data = 1;
+}
+
+message OnesLike {
     required NodeData node_data = 1;
 }
 
@@ -73,9 +80,10 @@ message Node {
         Constant constant = 1;
         Variable variable = 2;
         ZerosLike zeroslike = 3;
-        Transpose transpose = 4;
-        Square square = 5;
-        Sum sum = 6;
+        OnesLike oneslike = 4;
+        Transpose transpose = 5;
+        Square square = 6;
+        Sum sum = 7;
 
         Add add = 30;
         Multiply multiply = 31;
