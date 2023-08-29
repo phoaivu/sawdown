@@ -31,8 +31,8 @@ def _objective(x, y):
 
 optimizer = sd.FirstOrderOptimizer().objective_symbolic(_objective, var_dims=(5, 4)) \
     .fixed_initializer(np.ones((9, ), dtype=float)) \
-    .adam() \
-    .stop_after(100).stop_small_steps().stream_diary('stdout')
+    .steepest_descent().decayed_steplength(decay_steps=20, initial_steplength=1e-3) \
+    .stop_after(100).stop_small_steps().epsilon(1e-5).stream_diary('stdout')
 
 solution = optimizer.optimize()
 
@@ -69,13 +69,8 @@ This is different from actual machine precision, which, in Python, is configured
 In general, if `numpy`'s precision is about `1e-48` (which is not the smallest it can take),
 the smallest value you can use for `sawdown` is `1e-24`.
 
-For the technical audience, `.stop_small_steps()` would stop optimizing when the relative magnitude
-of the step w.r.t. the variable is smaller than a power of `epsilon`. Now if `epsilon`, raised to that 
-power, is smaller than `numpy`'s opinionated precision, it will be simply consider zero, 
-and the algorithm is not likely to stop.
-
-It is a stretch though. For most practical problems, you would be good with as small as 
-`epsilon=1e-14` in `sawdown`.
+For most practical problems, you would be good with as small as 
+`epsilon=1e-7` in `sawdown`.
 
 ### Initialization
 
@@ -87,7 +82,7 @@ need to specify an initializer.
 This is a photo of `sâu đo` (/ʂəw ɗɔ/), the animal, in Vietnamese. It moves similarly to how most
 numerical optimization algorithms work: one step at a time, with the shortest most-effective step.
 
-![image](https://img5.thuthuatphanmem.vn/uploads/2021/11/26/anh-con-sau-do-dep_035620548.jpg)
+![image](docs/figs/sawdown.jpg)
 
 With a little play of words, it becomes `sawdown`. I later realized
 it should better be called `showdoor`, but changes are costly.
