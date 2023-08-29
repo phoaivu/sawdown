@@ -35,6 +35,7 @@ def tensorcube_objective(func, var_dims=()):
 class TensorcubeObjective(objectives.ObjectiveBase):
 
     def __init__(self, graph, var_names=(), var_dims=(), objective_name='', grad_names=()):
+        assert len(var_names) == len(var_dims) == len(grad_names)
         self._graph = graph
         self._var_names = tuple(var_names)
         self._var_dims = tuple(var_dims)
@@ -67,6 +68,7 @@ class TensorcubeObjective(objectives.ObjectiveBase):
         idx = 0
         for g, d in zip(grads, self._var_dims):
             x_grads[idx:idx+d, :] = g
+            idx += d
         return x_grads
 
     def check_dimensions(self, var_dim):
@@ -80,7 +82,6 @@ class TensorcubeObjective(objectives.ObjectiveBase):
 
     def to_proto(self):
         graph_proto = self._graph.to_proto()
-        print(graph_proto)
         proto_obj = sawdown_pb2.TensorcubeObjective(graph=graph_proto, objective=self._objective_name)
         for d, var_name, grad_name in zip(self._var_dims, self._var_names, self._grad_names):
             proto_obj.variables.append(var_name)

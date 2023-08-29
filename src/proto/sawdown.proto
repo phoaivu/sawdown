@@ -93,6 +93,7 @@ message QuadraticInterpolation {
 }
 message DecayedSteplength {
     optional int64 decay_steps = 1;
+    optional double initial_steplength = 2;
 }
 message CircleDetection {
     optional int64 circle_length = 1;

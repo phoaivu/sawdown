@@ -113,9 +113,10 @@ class Declaration(object):
 
     # Steplength calculators
 
-    def decayed_steplength(self, decay_steps=100):
+    def decayed_steplength(self, decay_steps=100, initial_steplength=1.):
         self._problem.steplength_calculators.append(
-            sawdown_pb2.Steplength(decayed_steplength=sawdown_pb2.DecayedSteplength(decay_steps=decay_steps)))
+            sawdown_pb2.Steplength(decayed_steplength=sawdown_pb2.DecayedSteplength(
+                decay_steps=decay_steps, initial_steplength=initial_steplength)))
         return self
 
     def quadratic_interpolation_steplength(self):

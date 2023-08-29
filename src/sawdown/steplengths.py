@@ -11,12 +11,13 @@ class SteplengthBase(object):
 
 class DecaySteplength(SteplengthBase):
 
-    def __init__(self, decay_steps=100):
+    def __init__(self, decay_steps=100, initial_steplength=1.):
         SteplengthBase.__init__(self)
         self._decay_steps = decay_steps
+        self._initial_steplength = initial_steplength
 
     def steplength(self, k, x_k, d_k, max_steplength, opti_math):
-        return max_steplength * np.exp(-float(k) / self._decay_steps)
+        return min(max_steplength, self._initial_steplength * np.exp(-float(k) / self._decay_steps))
 
 
 class QuadraticInterpolationSteplength(SteplengthBase):

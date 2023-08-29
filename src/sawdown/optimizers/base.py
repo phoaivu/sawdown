@@ -72,7 +72,8 @@ class OptimizerBase(constraints.ConstraintsMixIn):
                 self._steplength_calculators.append(steplengths.QuadraticInterpolationSteplength())
             elif field_name == 'decayed_steplength':
                 self._steplength_calculators.append(steplengths.DecaySteplength(
-                    decay_steps=proto_steplength.decayed_steplength.decay_steps))
+                    decay_steps=proto_steplength.decayed_steplength.decay_steps,
+                    initial_steplength=proto_steplength.decayed_steplength.initial_steplength))
             elif field_name == 'circle_detection':
                 self._steplength_calculators.append(steplengths.CircleDetectionSteplength(
                     circle_length=proto_steplength.circle_detection.circle_length,

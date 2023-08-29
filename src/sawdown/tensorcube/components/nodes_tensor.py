@@ -315,7 +315,8 @@ class Sum(UnaryOp):
         proto = TensorNode.to_proto(self)
         proto.keepdims = self._keepdims
         if self._axis is not None:
-            [proto.axis.append(i) for i in self._axis]
+            axis = self._axis if not isinstance(self._axis, int) else (self._axis,)
+            [proto.axis.append(i) for i in axis]
         return proto
 
 
