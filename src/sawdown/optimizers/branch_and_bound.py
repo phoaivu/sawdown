@@ -50,14 +50,14 @@ class Worker(multiprocessing.Process):
         relaxed_problem = sawdown_pb2.Problem()
         relaxed_problem.MergeFromString(self._serialized_relaxed_problem)
 
-        problem_proto = self._problems.get()
+        _, problem_proto = self._problems.get()
         while problem_proto is not None:
             problem = sawdown_pb2.IntegerSubproblem()
             problem.MergeFromString(problem_proto)
             solution = _solve(relaxed_problem, problem,
                               self._diary_message, self._diary_response, self._diary_response_semaphore)
             self._solutions.put((problem_proto, solution))
-            problem_proto = self._problems.get()
+            _, problem_proto = self._problems.get()
 
 
 class BranchAndBounder(diaries.AsyncDiaryMixIn):
@@ -99,15 +99,16 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
             relaxed_problem.ClearField(field)
 
         if self._n_processes() == 0:
-            problems = queue.Queue()
+            problems = queue.PriorityQueue()
             solutions = queue.Queue()
         else:
+            # TODO: multiprocessing PriorityQueue
             problems = multiprocessing.Queue()
             solutions = multiprocessing.Queue()
         n_unsolved_problems = 0
 
         for problem in initial_problems:
-            problems.put(problem.SerializeToString())
+            problems.put((-np.inf, problem.SerializeToString()))
         n_unsolved_problems = len(initial_problems)
 
         workers = [Worker(relaxed_problem.SerializeToString(),
@@ -117,7 +118,7 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
 
         for _ in diary.as_long_as(lambda: n_unsolved_problems > 0):
             if self._n_processes() == 0:
-                problem_proto = problems.get()
+                _, problem_proto = problems.get()
                 problem = sawdown_pb2.IntegerSubproblem()
                 problem.MergeFromString(problem_proto)
                 solution = _solve(relaxed_problem, problem,
@@ -132,11 +133,11 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
             if sub_solution.x is None:
                 diary.set_items(sub_problem=sub_problem,
                                 termination=sub_solution.termination,
-                                sub_diary_id=sub_problem.diary_id,
+                                diary_id=sub_problem.diary_id,
                                 msg_sub='Failed solving sub-problem: {}'.format(sub_solution.get('exception', '')))
             elif sub_solution.objective < best_objective:
                 diary.set_items(x=sub_solution.x.copy(), objective=sub_solution.objective,
-                                sub_diary_id=sub_problem.diary_id,
+                                diary_id=sub_problem.diary_id,
                                 best_objective=best_objective)
                 if self._accept(sub_solution, diary):
                     best_objective = sub_solution.objective
@@ -144,18 +145,18 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
                     diary.set_items(msg_sub='Better optima found. Updated best solution')
                 else:
                     sub_problems = self._branch(sub_problem, sub_solution, diary)
-                    [problems.put(p.SerializeToString()) for p in sub_problems]
+                    [problems.put((sub_solution.objective, p.SerializeToString())) for p in sub_problems]
                     n_unsolved_problems += len(sub_problems)
                     diary.set_items(msg_sub='Promising optima found. '
                                             'Branch into {} sub-problems'.format(len(sub_problems)))
             else:
                 diary.set_items(x=sub_solution.x.copy(), objective=sub_solution.objective,
-                                sub_diary_id=sub_problem.diary_id,
+                                diary_id=sub_problem.diary_id,
                                 best_objective=best_objective, msg_sub='Mediocre solution. Rejected.')
 
             if n_unsolved_problems == 0:
                 diary.set_solution(x=x_opt, objective=best_objective, termination=diaries.Termination.MAX_ITERATION)
-        [problems.put(None) for _ in workers]
+        [problems.put((0, None)) for _ in workers]
         [w.join() for w in workers]
         [w.close() for w in workers]
         workers.clear()
