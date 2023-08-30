@@ -10,6 +10,7 @@ class Graph(object):
     def __init__(self):
         # nodes[node_name] -> node
         self._nodes = dict()
+        self._paths = {}
 
     @property
     def size(self):
@@ -23,12 +24,26 @@ class Graph(object):
     def add_node(self, node):
         assert node.name not in self._nodes.keys(), 'Duplicated node name: {}'.format(node.name)
         self._nodes[node.name] = node
+        self._paths.clear()
         return node
 
     def get_node(self, name):
         return self._nodes[name]
 
     def traverse(self, start_node, end_nodes):
+        """
+        Topologically sort the ancestors of start_node, up to all the nodes in `end_nodes`.
+        Raise RuntimeError if cannot reach `end_nodes`.
+        :type start_node: tensorcube.components.nodes.Node
+        :type end_nodes: tuple[tensorcube.components.nodes.Node]
+        :return: a list of tuple (source_node, [dest1_slot, dest2_slot, ...])
+        """
+        path_key = (start_node.name, ) + tuple(n.name for n in end_nodes)
+        if path_key not in self._paths:
+            self._paths[path_key] = self._traverse(start_node, end_nodes)
+        return self._paths[path_key]
+
+    def _traverse(self, start_node, end_nodes):
         """
         Topologically sort the ancestors of start_node, up to all the nodes in `end_nodes`.
         Raise RuntimeError if cannot reach `end_nodes`.

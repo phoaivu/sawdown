@@ -63,6 +63,7 @@ class TestSymbolic(unittest.TestCase):
                                     np.asarray([0.2138405 ,  0.10758386,  0.00132722, -0.10492942, -0.21118606,
                                                 0.99608704,  0.99608704,  0.99608704,  0.99608704], dtype=float),
                                     atol=1e-5))
+        print(solution['spent_time'])
 
 
 if __name__ == '__main__':
