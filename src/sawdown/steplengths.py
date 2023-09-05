@@ -40,7 +40,8 @@ class QuadraticInterpolationSteplength(SteplengthBase):
         """
         interpolated_step = 0.
         b = np.matmul(self._objective.deriv_variables(x_k).T, d_k)
-        a = self._objective.objective(x_k + d_k) - self._objective.objective(x_k) - b
+        g_max = self._objective.objective(x_k + max_steplength * d_k)
+        a = (g_max - (b * max_steplength) - self._objective.objective(x_k)) / np.square(max_steplength)
         if a * b < 0.:
             interpolated_step = min((-b / (2. * a)).squeeze(), max_steplength)
         return interpolated_step

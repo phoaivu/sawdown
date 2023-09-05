@@ -1,9 +1,6 @@
-import glob
-import os.path
 import unittest
 import numpy as np
 
-import optimizers
 import sawdown
 from tests import plotter
 from tests import test_problems
@@ -15,7 +12,7 @@ class OptimizerWrapper(object):
     """
 
     def __init__(self, symbolic_optimizer):
-        self._optimizer = optimizers.FirstOrderOptimizer(symbolic_optimizer._problem)
+        self._optimizer = sawdown.FirstOrderOptimizer(symbolic_optimizer._problem)
 
     def objective(self, data):
         return self._optimizer._objective.objective(data)
@@ -467,6 +464,14 @@ class TestOptimizers(unittest.TestCase):
         self.assertTrue(np.allclose(solution.x, np.asarray([1., 0., 1., 1., 1.], dtype=float)))
         self.assertLess(solution.iteration, 15)
         self.assertEqual(solution.objective, -22.)
+
+    def test_queens(self):
+        job_name = 'test_queens'
+        test_problems.cleanup_file_diary(job_name)
+        r = test_problems.queens(n=5).epsilon(1e-4).parallelize(0).file_diary(test_problems.log_path, job_name)
+
+        solution = r.optimize()
+        print(solution)
 
     def test_circular_steps(self):
         # Keeps alternating between (0, 1) and (2, 1)

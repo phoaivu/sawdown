@@ -86,14 +86,16 @@ class Declaration(object):
         return self.bound_constraints((var_index,), (lower, ), (upper, ))
 
     def bound_constraints(self, var_indices=(), lower_bounds=(), upper_bounds=()):
-        lower_bounds = tuple(lower_bounds)
-        upper_bounds = tuple(upper_bounds)
+        lower_bounds = lower_bounds if isinstance(lower_bounds, (list, tuple)) else (lower_bounds, )
+        upper_bounds = upper_bounds if isinstance(upper_bounds, (list, tuple)) else (upper_bounds, )
         if len(set(var_indices)) < len(var_indices):
             raise ValueError('Duplicated variable indices')
         if len(lower_bounds) == 1 and len(var_indices) > 1:
             lower_bounds = [lower_bounds[0] for _ in var_indices]
         if len(upper_bounds) == 1 and len(var_indices) > 1:
             upper_bounds = [upper_bounds[0] for _ in var_indices]
+        if len(lower_bounds) != len(var_indices) or len(upper_bounds) != len(var_indices):
+            raise ValueError('var_indices, lower_bounds and upper_bounds have to be the same length')
         for index, lower, upper in zip(var_indices, lower_bounds, upper_bounds):
             self._problem.bound_constraints.append(
                 sawdown_pb2.BoundConstraint(var_index=index, lower=lower, upper=upper))

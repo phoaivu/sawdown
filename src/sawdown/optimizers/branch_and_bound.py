@@ -26,8 +26,9 @@ def _solve(relaxed_problem, sub_problem, diary_message, diary_response, diary_re
             problem, sub_problem.diary_id, diary_message, diary_response, diary_response_semaphore)
         solution = optimizer.optimize()
     except RuntimeError as ex:
+        import traceback
         solution = diaries.Solution(x=None, iteration=-1, objective=np.nan,
-                                    termination=diaries.Termination.FAILED, exception=str(ex))
+                                    termination=diaries.Termination.FAILED, exception=traceback.format_exc())
     return solution
 
 
@@ -131,7 +132,7 @@ class BranchAndBounder(diaries.AsyncDiaryMixIn):
             n_unsolved_problems -= 1
 
             if sub_solution.x is None:
-                diary.set_items(sub_problem=sub_problem,
+                diary.set_items(sub_problem=str(sub_problem),
                                 termination=sub_solution.termination,
                                 diary_id=sub_problem.diary_id,
                                 msg_sub='Failed solving sub-problem: {}'.format(sub_solution.get('exception', '')))

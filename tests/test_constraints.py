@@ -3,6 +3,7 @@ import numpy as np
 
 import sawdown
 from sawdown.constraints import inequalities
+from sawdown.constraints import equalities
 
 
 class TestConstraints(unittest.TestCase):
@@ -87,3 +88,84 @@ class TestConstraints(unittest.TestCase):
                         [1., -2., 0.]], dtype=float)
         self.assertEqual(c.residuals(x).shape, (3, 3))
         self.assertEqual(c._projectors.shape, (3, 2, 2))
+
+    def test_least_square(self):
+        a = np.asarray([[1., 1., 1., 1., 1.,
+                         0., 0., 0., 0., 0.,
+                         0., 0., 0., 0., 0.,
+                         0., 0., 0., 0., 0.,
+                         0., 0., 0., 0., 0.],
+                        [0., 0., 0., 0., 0.,
+                         1., 1., 1., 1., 1.,
+                         0., 0., 0., 0., 0.,
+                         0., 0., 0., 0., 0.,
+                         0., 0., 0., 0., 0.],
+                        [0., 0., 0., 0., 0.,
+                         0., 0., 0., 0., 0.,
+                         1., 1., 1., 1., 1.,
+                         0., 0., 0., 0., 0.,
+                         0., 0., 0., 0., 0.],
+                        [0., 0., 0., 0., 0.,
+                         0., 0., 0., 0., 0.,
+                         0., 0., 0., 0., 0.,
+                         1., 1., 1., 1., 1.,
+                         0., 0., 0., 0., 0.],
+                        [0., 0., 0., 0., 0.,
+                         0., 0., 0., 0., 0.,
+                         0., 0., 0., 0., 0.,
+                         0., 0., 0., 0., 0.,
+                         1., 1., 1., 1., 1.],
+                        [1., 0., 0., 0., 0.,
+                         1., 0., 0., 0., 0.,
+                         1., 0., 0., 0., 0.,
+                         1., 0., 0., 0., 0.,
+                         1., 0., 0., 0., 0.],
+                        [0., 1., 0., 0., 0.,
+                         0., 1., 0., 0., 0.,
+                         0., 1., 0., 0., 0.,
+                         0., 1., 0., 0., 0.,
+                         0., 1., 0., 0., 0.],
+                        [0., 0., 1., 0., 0.,
+                         0., 0., 1., 0., 0.,
+                         0., 0., 1., 0., 0.,
+                         0., 0., 1., 0., 0.,
+                         0., 0., 1., 0., 0.],
+                        [0., 0., 0., 1., 0.,
+                         0., 0., 0., 1., 0.,
+                         0., 0., 0., 1., 0.,
+                         0., 0., 0., 1., 0.,
+                         0., 0., 0., 1., 0.],
+                        [0., 0., 0., 0., 1.,
+                         0., 0., 0., 0., 1.,
+                         0., 0., 0., 0., 1.,
+                         0., 0., 0., 0., 1.,
+                         0., 0., 0., 0., 1.],
+                        [1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+                         0., 0., 0., 0., 0., 0., 0., 0., 0.],
+                        [0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+                         0., 0., 0., 0., 0., 0., 0., 0., 0.],
+                        [0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+                         0., 0., 0., 0., 0., 0., 0., 0., 0.],
+                        [0., 0., 0., 1., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.,
+                         0., 0., 0., 0., 0., 0., 0., 0., 0.]], dtype=float)
+        b = np.asarray([-1., -1., -1., -1., -1., -1., -1., -1., -1., -1., -0., -0., -0., -0.], dtype=float)
+
+        from tests import test_problems
+        from sawdown import opti_math, config, diaries
+
+        optimizer = sawdown.FirstOrderOptimizer().objective_instance(test_problems.LeastSquareObjective, a, -b) \
+            .fixed_initializer(np.zeros((a.shape[1],), dtype=float)) \
+            .bound_constraints(range(a.shape[1]), lower_bounds=0., upper_bounds=1.) \
+            .epsilon(1e-10) \
+            .steepest_descent().quadratic_interpolation_steplength() \
+            .stop_after(500).stop_small_steps()
+        solution = optimizer.optimize()
+        residuals = np.matmul(a, solution.x[:, None]) + b[:, None]
+        print(solution)
+        self.assertTrue(np.all(opti_math.SawMath(epsilon=1e-10).equal_zeros(residuals)))
+
+        c = equalities.LinearEqualityConstraints(a, b)
+        m = opti_math.OptiMath(epsilon=1e-10)
+        with diaries.SyncDiary('0', [], None) as diary:
+            initialized = c.initialize(np.zeros((a.shape[1], )), config.Config(), m, diary)
+        self.assertTrue(c.satisfied(initialized, m))

@@ -55,6 +55,9 @@ class ConstraintsMixIn(object):
                 [base.BoundedVariable(index=v.var_index, lower_bound=v.lower, upper_bound=v.upper)
                  for v in proto_problem.bound_constraints])
 
+        # This will be filled in when initialization started.
+        self._working_equality_constraints = None
+
     """
     Called by the optimizer
     """
@@ -69,10 +72,9 @@ class ConstraintsMixIn(object):
         :return: modified x_k, if needed.
         :rtype: np.array
         """
-        if not self._fixed_value_constraints.satisfied(x_k, opti_math):
-            raise RuntimeError('Fixed-value constraints are violated')
-        if not self._equality_constraints.satisfied(x_k, opti_math):
-            raise RuntimeError('Equality constraints are violated.')
+        assert self._working_equality_constraints is not None
+        if not self._working_equality_constraints.satisfied(x_k, opti_math):
+            raise RuntimeError('Equality and/or Fixed-value constraints are violated')
         if not self._inequality_constraints.satisfied(x_k, opti_math):
             raise RuntimeError('Inequality constraints are violated')
         if not self._bound_constraints.satisfied(x_k, opti_math):
@@ -83,41 +85,27 @@ class ConstraintsMixIn(object):
         """
         Initialize with equality and fixed-vale constraints.
         """
-        if self._equality_constraints.is_empty() and self._fixed_value_constraints.is_empty():
-            return initializer
-        elif self._equality_constraints.is_empty():
-            return self._fixed_value_constraints.initialize(initializer, config, opti_math, diary)
-        elif self._fixed_value_constraints.is_empty():
-            return self._equality_constraints.initialize(initializer, config, opti_math, diary)
-
-        def _satisfied(x_k, _opti_math):
-            return all(map(lambda c: c.satisfied(x_k, _opti_math),
-                           [self._equality_constraints, self._fixed_value_constraints]))
-
-        def _director(x_k, d_k, _opti_math, _diary):
-            for c in [self._equality_constraints, self._fixed_value_constraints]:
-                d_k = c.initialization_direction(x_k, d_k, _opti_math, _diary)
-            return d_k
-
-        def _stepper(k, x_k, d_k, length, _config, _opti_math, _diary):
-            for c in [self._equality_constraints, self._fixed_value_constraints]:
-                length = c.initialization_steplength(k, x_k, d_k, length, _config, _opti_math, _diary)
-            return length
-
-        if initializer is None:
-            if hasattr(self._equality_constraints, 'var_dim'):
-                initializer = np.zeros((self._equality_constraints.var_dim(), ), dtype=float)
-            else:
+        if self._fixed_value_constraints.is_empty():
+            self._working_equality_constraints = self._equality_constraints
+        else:
+            var_dim = 0
+            if initializer is not None:
+                var_dim = initializer.shape[0]
+            elif hasattr(self._equality_constraints, 'var_dim'):
+                var_dim = self._equality_constraints.var_dim()
+            if var_dim == 0:
                 raise RuntimeError('Unknown variable dimension. Try hinting the optimizer '
                                    'via the initialization methods')
+            fixed_equalities = self._fixed_value_constraints.to_equalities(var_dim=var_dim)
+            self._working_equality_constraints = merge_constraints(self._equality_constraints, fixed_equalities)
 
-        return opti_math.optimize(initializer, _satisfied, _director, _stepper, config, diary)
+        return self._working_equality_constraints.initialize(initializer, config, opti_math, diary)
 
     def __inequality_initialize(self, initializer, config, opti_math, diary):
         if self._inequality_constraints.is_empty() and self._bound_constraints.is_empty():
             return initializer
 
-        empty_equalities = all(map(lambda c: c.is_empty(), [self._equality_constraints, self._fixed_value_constraints]))
+        empty_equalities = self._working_equality_constraints.is_empty()
         if empty_equalities and self._inequality_constraints.is_empty():
             return self._bound_constraints.initialize(initializer, config, opti_math, diary)
         if empty_equalities and self._bound_constraints.is_empty():
@@ -128,22 +116,19 @@ class ConstraintsMixIn(object):
 
         def _satisfied(x_k, _opti_math):
             return all(map(lambda c: c.satisfied(x_k, _opti_math),
-                           [self._equality_constraints, self._fixed_value_constraints,
-                            self._inequality_constraints, self._bound_constraints]))
+                           [self._working_equality_constraints, self._inequality_constraints, self._bound_constraints]))
 
         def _director(x_k, d_k, _opti_math, _diary):
             for c in [self._inequality_constraints, self._bound_constraints]:
                 d_k = c.initialization_direction(x_k, d_k, _opti_math, _diary)
             diary.set_items(inequality_direction=d_k.copy())
-            for c in [self._equality_constraints, self._fixed_value_constraints]:
-                d_k = c.direction(x_k, d_k, _opti_math, _diary)
+            d_k = self._working_equality_constraints.direction(x_k, d_k, _opti_math, _diary)
             return d_k
 
         def _stepper(k, x_k, d_k, length, _config, _opti_math, _diary):
             for c in [self._inequality_constraints, self._bound_constraints]:
                 length = c.initialization_steplength(k, x_k, d_k, length, _config, _opti_math, _diary)
-            for c in [self._equality_constraints, self._fixed_value_constraints]:
-                length = c.steplength(k, x_k, d_k, length, _opti_math, _diary)
+            length = self._working_equality_constraints.steplength(k, x_k, d_k, length, _opti_math, _diary)
             return length
 
         if initializer is None:
@@ -177,8 +162,7 @@ class ConstraintsMixIn(object):
         :rtype: np.array
         """
         # Project d_k sequentially to the innermost active inequality constraint, then all equality constraints
-        for c in [self._inequality_constraints, self._bound_constraints,
-                  self._equality_constraints, self._fixed_value_constraints]:
+        for c in [self._inequality_constraints, self._bound_constraints, self._working_equality_constraints]:
             d_k = c.direction(x_k, d_k, opti_math, diary)
         return d_k
 
@@ -195,8 +179,7 @@ class ConstraintsMixIn(object):
         :rtype: float
         """
         delta = max_steplength
-        for c in [self._inequality_constraints, self._bound_constraints,
-                  self._equality_constraints, self._fixed_value_constraints]:
+        for c in [self._inequality_constraints, self._bound_constraints, self._working_equality_constraints]:
             delta = c.steplength(k, x_k, d_k, delta, opti_math, diary)
         return delta
 
@@ -252,7 +235,3 @@ class IntegerConstraintsMixIn(object):
         self._integer_var_lowers = [v.lower_bound for v in filtered_vars]
         self._integer_var_uppers = [v.upper_bound for v in filtered_vars]
         self._binary_vars = sorted(set(self._binary_vars))
-
-
-    # def _setup(self, objective, opti_math, **kwargs):
-    #     self._integer_constraints.setup(objective, opti_math, **kwargs)

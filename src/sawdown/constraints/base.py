@@ -101,7 +101,7 @@ class LinearConstraints(ConstraintsBase):
         # I - (1/a^Ta)aa^T
         self._projectors = self._a[:, :, None] * self._a[:, None, :]
         denominator = np.sum(np.square(self._a), axis=1)
-        self._projectors = (np.identity(self._projectors.shape[1])[None, :, :]
+        self._projectors = (np.identity(self._a.shape[1])[None, :, :]
                             - (self._projectors / denominator[:, None, None]))
 
     def var_dim(self):

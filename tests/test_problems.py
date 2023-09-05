@@ -100,3 +100,37 @@ def simple_inequality_quadratic():
         .linear_inequality_constraints(constraint_a, constraint_b) \
         .steepest_descent().quadratic_interpolation_steplength() \
         .stop_after(100).stop_small_steps()
+
+
+class QueenObjective(sawdown.ObjectiveBase):
+
+    def _objective(self, x):
+        return -0.5 * np.sum(np.square(x), axis=0)
+
+    def _gradient(self, x):
+        return -x
+
+
+def queens(n=4):
+    # horizontal and vertical
+    a = np.zeros((2 * n, n * n), dtype=float)
+    b = np.ones((2 * n, ), dtype=float)
+    for i in range(n):
+        a[i, i * n:(i + 1) * n] = 1.
+        a[n + i, np.arange(i, n * n, n)] = 1.
+    # // and \\
+    c = np.zeros((4 * n - 2, n * n), dtype=float)
+    d = np.ones((4 * n - 2,), dtype=float)
+    for i in range(n):
+        c[i, np.arange(i, i*n + 1, n-1)] = 1.
+        c[2 * n - 1 + i, np.arange(i, i + (n-i)*(n+1), n + 1)] = 1.
+    for i in range(n-1):
+        c[n + i, np.arange(n*(i+2) - 1, n * n, n - 1)] = 1.
+        c[3 * n - 1 + i, np.arange(n*(i+1), n*(i+1) + (n-i-1)*(n+1), n + 1)] = 1.
+
+    return sawdown.MipOptimizer().objective_instance(QueenObjective) \
+        .fixed_initializer(np.ones(n*n)) \
+        .linear_equality_constraints(a, -b) \
+        .binary_constraints(tuple(range(n * n))) \
+        .steepest_descent().quadratic_interpolation_steplength() \
+        .stop_after(100).stop_small_steps()

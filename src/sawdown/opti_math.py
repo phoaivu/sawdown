@@ -69,7 +69,7 @@ class OptiMath(SawMath):
     """
     Maths and configurations needed for optimization.
     """
-    def __init__(self, epsilon=1e-6):
+    def __init__(self, epsilon=1e-14):
         SawMath.__init__(self, epsilon)
 
     @property
@@ -92,7 +92,7 @@ class OptiMath(SawMath):
             if self.true_negative(1. - v):
                 numpy_precision = i
                 break
-        smallest_possible_epsilon = (numpy_precision / 2) + 1
+        smallest_possible_epsilon = numpy_precision     # (numpy_precision / 2) + 1
         if self._epsilon < np.power(10., smallest_possible_epsilon):
             raise ValueError('Numpy precision is at most 1.E{}. Try setting epsilon greater than 1.E{}'.format(
                 numpy_precision, smallest_possible_epsilon))
@@ -116,9 +116,9 @@ class OptiMath(SawMath):
 
             if satisfier(x_k, self):
                 termination = diaries.Termination.SATISFIED
-            elif self.true_leq(np.max(np.abs(delta * d_k) / np.maximum(np.abs(x_k), 1.)),
-                               np.power(self._epsilon, 2. / 3)):
-                termination = diaries.Termination.INFINITESIMAL_STEP
+            # elif self.true_leq(np.max(np.abs(delta * d_k) / np.maximum(np.abs(x_k), 1.)),
+            #                    np.power(self._epsilon, 2. / 3)):
+            #     termination = diaries.Termination.INFINITESIMAL_STEP
             elif k >= config.initialization_max_iters:
                 termination = diaries.Termination.MAX_ITERATION
 
